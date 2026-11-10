@@ -19,22 +19,26 @@ const CHANGELOGS = [
       {
         emoji: "📑",
         title: "Champs Personnalisés (Embed Fields)",
-        desc: "Ajout, modification, réorganisation et suppression de champs avec support du mode aligné côte à côte (inline)."
+        desc: "Ajout, modification, réorganisation et suppression de champs avec support du mode aligné côte à côte (inline).",
+        inline: true
       },
       {
         emoji: "🎨",
         title: "Prévisualisation Discord Réaliste",
-        desc: "Rendu visuel fidèle au thème sombre Discord avec badge BOT, contraste réel de l'embed, miniature en haut à droite et bannière."
+        desc: "Rendu visuel fidèle au thème sombre Discord avec badge BOT, contraste réel de l'embed, miniature en haut à droite et bannière.",
+        inline: true
       },
       {
         emoji: "🤖",
         title: "Support Slash Command /embed",
-        desc: "Intégration d'options de champs directement dans la commande slash Discord pour les modérateurs."
+        desc: "Intégration d'options de champs directement dans la commande slash Discord pour les modérateurs.",
+        inline: true
       },
       {
         emoji: "🚀",
         title: "API REST Discord Évoluée",
-        desc: "Prise en charge complète des auteurs, miniatures, bannières et validation automatique des 25 champs."
+        desc: "Prise en charge complète des auteurs, miniatures, bannières et validation automatique des 25 champs.",
+        inline: true
       }
     ]
   },

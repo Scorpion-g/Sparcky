@@ -21,31 +21,35 @@ export default function Dashboard() {
 
   // Modèle d'annonce modifiable par l'Owner
   const [announcement, setAnnouncement] = useState({
-    version: "2.3.2",
-    title: "Mise à Jour v2.3.2 : Refonte Sécurité, Menu Déroulant /help, Commandes Unifiées & Démo Multilingue",
-    summary: "Refonte majeure de l'ergonomie et de la sécurité du bot : nouveau centre d'aide interactif avec menu déroulant par catégories, unification des commandes de configuration (/setup) et de sécurité (/security), purge de messages filtrable (/clear), tolérance intelligente et durées personnalisées sur le Blind Test, et mode Démo interactif multilingue (FR, EN, ES) sur le web.",
+    version: "2.3.4",
+    title: "Mise à Jour v2.3.4 : Constructeur d'Embeds Avancé (Champs Personnalisés & Rendu Discord Fidèle)",
+    summary: "Amélioration majeure du créateur d'embeds sur le panel et sur Discord : gestion dynamique des champs personnalisés (jusqu'à 25 fields avec nom, valeur et alignement inline), prévisualisation en direct identique au thème sombre officiel de Discord (#313338 / #2b2d31), et support des fields dans la commande slash /embed.",
     demoUrl: "https://sparcky.matteoriviere.fr/demo",
-    githubUrl: "https://github.com/Scorpion-g/Sparcky/releases/tag/v2.3.2",
+    githubUrl: "https://github.com/Scorpion-g/Sparcky/releases/tag/v2.3.4",
     highlights: [
       {
-        emoji: "📖",
-        title: "Centre d'Aide Interactif /help",
-        desc: "Menu déroulant par catégories (Sécurité, Modération, Économie, Setup, Fun, Tickets, Général) avec affichage automatique des sous-commandes."
+        emoji: "📑",
+        title: "Champs Personnalisés (Embed Fields)",
+        desc: "Ajout, modification, réorganisation et suppression de champs avec support du mode aligné côte à côte (inline).",
+        inline: true
       },
       {
-        emoji: "🛡️",
-        title: "Hubs Unifiés /security & /setup",
-        desc: "Gestion centralisée de l'auto-modération et de la configuration du serveur (bienvenue, départs, autorole, vocaux temporaires, langue)."
+        emoji: "🎨",
+        title: "Prévisualisation Discord Réaliste",
+        desc: "Rendu visuel fidèle au thème sombre Discord avec badge BOT, contraste réel de l'embed, miniature en haut à droite et bannière.",
+        inline: true
       },
       {
-        emoji: "🎵",
-        title: "Blind Test Deezer Perfectionné",
-        desc: "Validation souple des réponses (tolérance Levenshtein, expressions orales) et choix de la durée de chaque manche (15s à 60s)."
+        emoji: "🤖",
+        title: "Support Slash Command /embed",
+        desc: "Intégration d'options de champs directement dans la commande slash Discord pour les modérateurs.",
+        inline: true
       },
       {
-        emoji: "🌐",
-        title: "Sandbox Démo & Panel Multilingue",
-        desc: "Espace interactif public sur sparcky.matteoriviere.fr/demo et traduction intégrale du panel en Français, Anglais et Espagnol."
+        emoji: "🚀",
+        title: "API REST Discord Évoluée",
+        desc: "Prise en charge complète des auteurs, miniatures, bannières et validation automatique des 25 champs.",
+        inline: true
       }
     ]
   })
@@ -351,9 +355,27 @@ export default function Dashboard() {
 
                   {/* Highlights */}
                   <div className="space-y-3 pt-2">
-                    <label className="text-xs font-semibold text-slate-400">Points Forts (Highlights) :</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-400">Points Forts / Champs (Highlights) :</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnnouncement({
+                            ...announcement,
+                            highlights: [
+                              ...announcement.highlights,
+                              { emoji: "✨", title: "Nouveauté", desc: "Description du point fort...", inline: true }
+                            ]
+                          })
+                        }}
+                        className="rounded-lg bg-indigo-600/20 border border-indigo-500/30 px-2 py-1 text-[11px] font-bold text-indigo-300 hover:bg-indigo-600/30 transition"
+                      >
+                        + Ajouter un point fort
+                      </button>
+                    </div>
+
                     {announcement.highlights.map((hl, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row gap-2 p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                      <div key={idx} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-white/5">
                         <input
                           type="text"
                           value={hl.emoji}
@@ -362,7 +384,7 @@ export default function Dashboard() {
                             updated[idx].emoji = e.target.value
                             setAnnouncement({ ...announcement, highlights: updated })
                           }}
-                          className="w-12 text-center rounded-lg bg-slate-800 border border-white/10 py-1 text-sm text-white"
+                          className="w-12 text-center rounded-lg bg-slate-800 border border-white/10 py-1 text-sm text-white shrink-0"
                           title="Emoji"
                         />
                         <input
@@ -387,6 +409,32 @@ export default function Dashboard() {
                           placeholder="Description du point fort"
                           className="flex-1 rounded-lg bg-slate-800 border border-white/10 px-2.5 py-1 text-xs text-white"
                         />
+                        <label className="flex items-center gap-1.5 text-xs text-slate-300 shrink-0 cursor-pointer bg-slate-800/80 px-2 py-1 rounded-lg border border-white/5">
+                          <input
+                            type="checkbox"
+                            checked={hl.inline !== false}
+                            onChange={(e) => {
+                              const updated = [...announcement.highlights]
+                              updated[idx].inline = e.target.checked
+                              setAnnouncement({ ...announcement, highlights: updated })
+                            }}
+                            className="rounded border-white/20 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer"
+                          />
+                          <span className="text-[11px]">Inline</span>
+                        </label>
+                        {announcement.highlights.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = announcement.highlights.filter((_, i) => i !== idx)
+                              setAnnouncement({ ...announcement, highlights: updated })
+                            }}
+                            className="p-1 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition shrink-0"
+                            title="Supprimer"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -424,11 +472,11 @@ export default function Dashboard() {
                   <div>📦 <strong>GitHub Release :</strong> <span className="text-[#00a8fc] underline">{announcement.githubUrl}</span></div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
                   {announcement.highlights.map((h, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="font-bold text-xs text-white">{h.emoji} {h.title}</div>
-                      <div className="text-xs text-[#b5bac1] leading-relaxed">{h.desc}</div>
+                    <div key={i} className={h.inline !== false ? "col-span-1 space-y-1" : "col-span-full space-y-1"}>
+                      <div className="font-bold text-xs text-white leading-snug">{h.emoji} {h.title}</div>
+                      <div className="text-xs text-[#b5bac1] leading-relaxed whitespace-pre-wrap">{h.desc}</div>
                     </div>
                   ))}
                 </div>

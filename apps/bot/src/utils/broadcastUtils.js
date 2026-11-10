@@ -28,9 +28,9 @@ function buildReleaseEmbed(version = CURRENT_VERSION, client = null) {
 
   for (const item of release.highlights) {
     embed.addFields({
-      name: `${item.emoji} ${item.title}`,
+      name: `${item.emoji || "✨"} ${item.title}`,
       value: item.desc,
-      inline: false
+      inline: item.inline !== undefined ? item.inline : true
     });
   }
 

@@ -745,7 +745,7 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
       fields: finalHighlights.map(h => ({
         name: `${h.emoji || "✨"} ${h.title}`,
         value: h.desc,
-        inline: false
+        inline: h.inline !== undefined ? Boolean(h.inline) : true
       })),
       footer: {
         text: `God_Sparky v${release.version} • GitHub: Scorpion-g/Sparcky`
