@@ -4,8 +4,10 @@ const {
   createAudioResource,
   AudioPlayerStatus,
   VoiceConnectionStatus,
-  entersState
+  entersState,
+  NoSubscriberBehavior
 } = require("@discordjs/voice");
+const { Readable } = require("stream");
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const logger = require("./logger");
 const User = require("../models/User");
@@ -129,7 +131,11 @@ function shuffle(array) {
 async function fetchTracksForTheme(themeKey) {
   const theme = THEMES[themeKey] || THEMES.hits;
   try {
-    const res = await fetch(theme.url);
+    const res = await fetch(theme.url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      }
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const list = (data.data || []).filter(
@@ -140,6 +146,32 @@ async function fetchTracksForTheme(themeKey) {
     logger.error(`[BLINDTEST] Erreur fetchTracks (${themeKey}): ${err.message}`);
     return [];
   }
+}
+
+/**
+ * Crée une ressource audio en streamant le MP3 avec un User-Agent valide
+ */
+async function getAudioResource(url) {
+  const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": userAgent,
+      Accept: "audio/mpeg,audio/*;q=0.9,*/*;q=0.8"
+    }
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} lors de la récupération de l'audio`);
+  }
+
+  const stream = Readable.fromWeb(res.body);
+  const resource = createAudioResource(stream, {
+    inlineVolume: true
+  });
+  if (resource.volume) {
+    resource.volume.setVolume(1.0);
+  }
+  return resource;
 }
 
 /**
@@ -203,7 +235,33 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
     });
   }
 
-  const player = createAudioPlayer();
+  const player = createAudioPlayer({
+    behaviors: {
+      noSubscriber: NoSubscriberBehavior.Play,
+      maxMissedFrames: 250
+    }
+  });
+
+  player.on(AudioPlayerStatus.Playing, () => {
+    logger.info(`[BLINDTEST] Audio en lecture sur ${voiceChannel.name} (manche ${game.currentRound})`);
+  });
+
+  player.on(AudioPlayerStatus.Idle, () => {
+    logger.info(`[BLINDTEST] Audio player inactif`);
+  });
+
+  player.on("error", (err) => {
+    logger.error(`[BLINDTEST] Erreur audio player: ${err?.message}`);
+  });
+
+  connection.on("stateChange", (oldState, newState) => {
+    logger.info(`[BLINDTEST] VoiceConnection: ${oldState.status} -> ${newState.status}`);
+  });
+
+  connection.on("error", (err) => {
+    logger.error(`[BLINDTEST] Erreur connexion vocale: ${err?.message}`);
+  });
+
   connection.subscribe(player);
 
   const game = {
@@ -238,7 +296,7 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
       `• Écrivez vos réponses dans **ce salon textuel** !\n` +
       `• **+1 point** pour le **Titre** trouvé.\n` +
       `• **+1 point** pour l'**Artiste** trouvé.\n\n` +
-      `🚀 *Préparation de la première manche...*`
+      `🚀 *Lancement de la première manche...*`
     )
     .setColor(0x6366f1)
     .setFooter({ text: "God_Sparky Blind Test • Préparez vos claviers !" })
@@ -246,12 +304,12 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
 
   await interaction.editReply({ embeds: [startEmbed] });
 
-  // Lancer la première manche après 3 secondes
+  // Lancer la première manche après 2 secondes
   setTimeout(() => {
     if (!game.isEnded) {
       playNextRound(game);
     }
-  }, 3000);
+  }, 2000);
 }
 
 /**
@@ -269,12 +327,12 @@ async function playNextRound(game) {
   game.titleFoundBy = null;
   game.artistFoundBy = null;
 
-  // Création et lecture de la ressource audio Deezer
+  // Création et lecture de la ressource audio Deezer via stream HTTP sécurisé
   try {
-    const resource = createAudioResource(track.preview);
+    const resource = await getAudioResource(track.preview);
     game.player.play(resource);
   } catch (err) {
-    logger.error(`[BLINDTEST] Erreur lecture preview: ${err.message}`);
+    logger.error(`[BLINDTEST] Erreur lecture preview (${track.title}): ${err.message}`);
   }
 
   const roundEmbed = new EmbedBuilder()
@@ -302,13 +360,11 @@ async function playNextRound(game) {
     if (game.isEnded) return;
 
     const { matchTitle, matchArtist } = checkGuess(msg.content, track);
-    let scoreChanged = false;
 
     // Titre trouvé
     if (matchTitle && !game.titleFoundBy) {
       game.titleFoundBy = msg.author.id;
       addScore(game, msg.author, 1);
-      scoreChanged = true;
       await msg.react("🎵").catch(() => {});
       await game.textChannel.send({
         content: `🎉 Bravo <@${msg.author.id}> a trouvé le **titre** ! (+1 pt)`
@@ -319,7 +375,6 @@ async function playNextRound(game) {
     if (matchArtist && !game.artistFoundBy) {
       game.artistFoundBy = msg.author.id;
       addScore(game, msg.author, 1);
-      scoreChanged = true;
       await msg.react("🎤").catch(() => {});
       await game.textChannel.send({
         content: `🎯 Bien joué <@${msg.author.id}> a trouvé l'**artiste** ! (+1 pt)`
@@ -497,5 +552,6 @@ module.exports = {
   getThemes,
   isGameActive,
   checkGuess,
-  cleanString
+  cleanString,
+  getAudioResource
 };
