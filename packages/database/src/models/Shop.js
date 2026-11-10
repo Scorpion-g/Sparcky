@@ -31,6 +31,10 @@ const shopItemSchema = new mongoose.Schema({
     required: true,
     enum: ['role', 'item', 'other'], // Example types
   },
+  roleId: {
+    type: String,
+    default: null,
+  },
 });
 
 module.exports = mongoose.model('ShopItem', shopItemSchema);

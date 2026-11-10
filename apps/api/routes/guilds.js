@@ -228,7 +228,27 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     antiRaid: typeof patch.antiRaid === "boolean" ? patch.antiRaid : undefined,
 
     language: cleanLanguage && ["fr", "en", "es"].includes(cleanLanguage) ? cleanLanguage : undefined,
-    badWords: cleanBadWords
+    badWords: cleanBadWords,
+
+    // Economie
+    currencySymbol: typeof patch.currencySymbol === "string" ? patch.currencySymbol.slice(0, 8) : undefined,
+    currencyName: typeof patch.currencyName === "string" ? patch.currencyName.slice(0, 32) : undefined,
+    dailyAmount: typeof patch.dailyAmount === "number" ? Math.max(0, Math.floor(patch.dailyAmount)) : undefined,
+    workMin: typeof patch.workMin === "number" ? Math.max(0, Math.floor(patch.workMin)) : undefined,
+    workMax: typeof patch.workMax === "number" ? Math.max(0, Math.floor(patch.workMax)) : undefined,
+    chatReward: typeof patch.chatReward === "number" ? Math.max(0, Math.floor(patch.chatReward)) : undefined,
+    robEnabled: typeof patch.robEnabled === "boolean" ? patch.robEnabled : undefined,
+
+    // Niveaux & XP
+    xpEnabled: typeof patch.xpEnabled === "boolean" ? patch.xpEnabled : undefined,
+    xpChannelId: cleanChannel(patch.xpChannelId),
+    levelRoles: Array.isArray(patch.levelRoles) ? patch.levelRoles.filter(r => r && r.level > 0 && r.roleId) : undefined,
+
+    // Tickets
+    ticketEnabled: typeof patch.ticketEnabled === "boolean" ? patch.ticketEnabled : undefined,
+    ticketCategoryId: cleanChannel(patch.ticketCategoryId),
+    ticketSupportRoleId: cleanChannel(patch.ticketSupportRoleId),
+    ticketLogChannelId: cleanChannel(patch.ticketLogChannelId),
   })
 
   return res.json({ guildId, config: next })

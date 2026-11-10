@@ -15,7 +15,15 @@ const userSchema = new Schema({
 	},
 	lastDaily: {
 		type: Date,
-		reqired: true,
+		default: null,
+	},
+	lastWork: {
+		type: Date,
+		default: null,
+	},
+	lastRob: {
+		type: Date,
+		default: null,
 	},
   items: {
     type: [String],

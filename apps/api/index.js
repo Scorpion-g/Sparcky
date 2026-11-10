@@ -8,6 +8,8 @@ import guildRoutes from "./routes/guilds.js"
 import logsRoutes from "./routes/logs.js"
 import debugRoutes from "./routes/debug.js"
 import devDbRoutes from "./routes/devDb.js"
+import economyRoutes from "./routes/economy.js"
+import featureRoutes from "./routes/features.js"
 
 const app = express()
 
@@ -23,6 +25,8 @@ app.use("/api", guildRoutes)
 app.use("/api", logsRoutes)
 app.use("/api", debugRoutes)
 app.use("/api", devDbRoutes)
+app.use("/api", economyRoutes)
+app.use("/api", featureRoutes)
 
 app.listen(3001, () => {
   console.log("API running on http://localhost:3001")

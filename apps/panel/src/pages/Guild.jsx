@@ -68,7 +68,7 @@ export default function GuildPage() {
   const [savedConfigStr, setSavedConfigStr] = useState("")
 
   // Onglet actif
-  const [activeTab, setActiveTab] = useState("channels") // channels | security | words | settings
+  const [activeTab, setActiveTab] = useState("channels") // channels | security | economy | leveling | tickets | embeds | warns | words | settings
 
   // Sauvegarde
   const [saving, setSaving] = useState(false)
@@ -76,6 +76,40 @@ export default function GuildPage() {
 
   // Mot interdit temporaire pour le champ d'ajout
   const [newWordInput, setNewWordInput] = useState("")
+
+  // Données Boutique & Économie
+  const [shopItems, setShopItems] = useState([])
+  const [economyLeaderboard, setEconomyLeaderboard] = useState([])
+  const [shopLoading, setShopLoading] = useState(false)
+  const [showShopModal, setShowShopModal] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
+  const [itemForm, setItemForm] = useState({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "" })
+
+  // Ajustement de solde
+  const [balanceModalUser, setBalanceModalUser] = useState(null)
+  const [adjustAmount, setAdjustAmount] = useState(500)
+  const [adjustAction, setAdjustAction] = useState("add")
+
+  // Données Niveaux & XP
+  const [xpLeaderboard, setXpLeaderboard] = useState([])
+  const [newLevelRoleLevel, setNewLevelRoleLevel] = useState(5)
+  const [newLevelRoleRoleId, setNewLevelRoleRoleId] = useState("")
+
+  // Données Embed Builder
+  const [embedForm, setEmbedForm] = useState({
+    channelId: "",
+    title: "📢 Annonce Importante",
+    description: "Bienvenue sur le serveur Discord ! N'hésitez pas à consulter les salons d'informations.",
+    color: "#6366F1",
+    image: "",
+    thumbnail: "",
+    footer: "God_Sparky • Modération & Événements"
+  })
+  const [sendingEmbed, setSendingEmbed] = useState(false)
+
+  // Données Warns & Modération Web
+  const [warnsList, setWarnsList] = useState([])
+  const [warnsLoading, setWarnsLoading] = useState(false)
 
   function logout() {
     clearJwt()
@@ -112,6 +146,13 @@ export default function GuildPage() {
         const initialCfg = payload?.config || {}
         setConfig(initialCfg)
         setSavedConfigStr(JSON.stringify(initialCfg))
+
+        // Initialiser le salon par défaut de l'embed
+        const firstTextCh = payload?.channels?.find(c => c.type === 0 || c.type === 5)
+        if (firstTextCh) {
+          setEmbedForm(prev => ({ ...prev, channelId: firstTextCh.id }))
+        }
+
         setStatus("ready")
       } catch (e) {
         if (cancelled) return
@@ -137,13 +178,135 @@ export default function GuildPage() {
     }
   }, [id, token])
 
-  // Détection des modifications
+  // Chargements spécifiques selon l'onglet
+  useEffect(() => {
+    if (activeTab === "economy" && id && token) {
+      fetchShop()
+      fetchEconomyLeaderboard()
+    } else if (activeTab === "leveling" && id && token) {
+      fetchLevels()
+    } else if (activeTab === "warns" && id && token) {
+      fetchWarns()
+    }
+  }, [activeTab, id, token])
+
+  async function fetchShop() {
+    setShopLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/shop`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setShopItems(payload?.items || [])
+      }
+    } catch {
+      // Ignorer
+    } finally {
+      setShopLoading(false)
+    }
+  }
+
+  async function fetchEconomyLeaderboard() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/economy`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setEconomyLeaderboard(payload?.leaderboard || [])
+      }
+    } catch {
+      // Ignorer
+    }
+  }
+
+  async function fetchLevels() {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/levels`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setXpLeaderboard(payload?.leaderboard || [])
+      }
+    } catch {
+      // Ignorer
+    }
+  }
+
+  async function fetchWarns() {
+    setWarnsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/moderation/warns`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setWarnsList(payload?.warns || [])
+      }
+    } catch {
+      // Ignorer
+    } finally {
+      setWarnsLoading(false)
+    }
+  }
+
+  async function handleRevokeWarn(userId) {
+    if (!confirm("Voulez-vous révoquer 1 avertissement pour cet utilisateur ?")) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/moderation/warns/${userId}/revoke`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        fetchWarns()
+        setSaveMessage({ type: "success", text: "Avertissement révoqué avec succès !" })
+        setTimeout(() => setSaveMessage(null), 3000)
+      }
+    } catch (e) {
+      alert("Erreur: " + e.message)
+    }
+  }
+
+  async function handleSendEmbed() {
+    if (!embedForm.channelId || !embedForm.description) {
+      alert("Veuillez sélectionner un salon et saisir une description.")
+      return
+    }
+
+    setSendingEmbed(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/embed`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(embedForm)
+      })
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error || "Échec de l'envoi de l'embed")
+      }
+
+      setSaveMessage({ type: "success", text: "Embed envoyé avec succès sur Discord !" })
+      setTimeout(() => setSaveMessage(null), 4000)
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSendingEmbed(false)
+    }
+  }
+
+  // Détection des modifications de configuration
   const hasChanges = useMemo(() => {
     if (!config) return false
     return JSON.stringify(config) !== savedConfigStr
   }, [config, savedConfigStr])
 
-  // Séparation des channels textuels vs vocaux
+  // Séparation des channels
   const textChannels = useMemo(() => {
     const raw = data?.channels || []
     return raw
@@ -158,11 +321,17 @@ export default function GuildPage() {
       .map(ch => ({ id: ch.id, name: ch.name || ch.id, prefix: "🔊" }))
   }, [data?.channels])
 
+  const categoryChannels = useMemo(() => {
+    const raw = data?.channels || []
+    return raw
+      .filter(ch => ch.type === 4)
+      .map(ch => ({ id: ch.id, name: ch.name || ch.id, prefix: "📁" }))
+  }, [data?.channels])
+
   const roles = useMemo(() => {
     return data?.roles || []
   }, [data?.roles])
 
-  // Handler de mise à jour locale de la config
   function updateField(key, val) {
     setConfig(prev => ({
       ...prev,
@@ -171,7 +340,6 @@ export default function GuildPage() {
     setSaveMessage(null)
   }
 
-  // Ajout d'un mot interdit
   function addBadWord() {
     const word = newWordInput.trim().toLowerCase()
     if (!word) return
@@ -186,7 +354,6 @@ export default function GuildPage() {
     setNewWordInput("")
   }
 
-  // Suppression d'un mot interdit
   function removeBadWord(wordToRemove) {
     const currentWords = Array.isArray(config?.badWords) ? config.badWords : []
     updateField(
@@ -195,7 +362,23 @@ export default function GuildPage() {
     )
   }
 
-  // Réinitialiser les changements
+  function addLevelRole() {
+    if (!newLevelRoleRoleId || !newLevelRoleLevel) return
+    const current = Array.isArray(config?.levelRoles) ? config.levelRoles : []
+    if (current.some(r => Number(r.level) === Number(newLevelRoleLevel))) return
+
+    updateField("levelRoles", [
+      ...current,
+      { level: Number(newLevelRoleLevel), roleId: newLevelRoleRoleId }
+    ].sort((a, b) => a.level - b.level))
+    setNewLevelRoleRoleId("")
+  }
+
+  function removeLevelRole(lvl) {
+    const current = Array.isArray(config?.levelRoles) ? config.levelRoles : []
+    updateField("levelRoles", current.filter(r => Number(r.level) !== Number(lvl)))
+  }
+
   function handleReset() {
     try {
       setConfig(JSON.parse(savedConfigStr))
@@ -205,7 +388,6 @@ export default function GuildPage() {
     }
   }
 
-  // Enregistrer sur l'API
   async function handleSave() {
     if (!hasChanges || saving) return
 
@@ -241,6 +423,79 @@ export default function GuildPage() {
       setSaveMessage({ type: "error", text: err?.message || "Échec de l'enregistrement" })
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleSaveShopItem() {
+    if (!itemForm.name || itemForm.price < 0) return
+
+    try {
+      const url = editingItem
+        ? `${API_BASE_URL}/api/guilds/${id}/shop/${editingItem.itemId}`
+        : `${API_BASE_URL}/api/guilds/${id}/shop`
+      const method = editingItem ? "PUT" : "POST"
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(itemForm)
+      })
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error || "Erreur lors de la sauvegarde de l'article")
+      }
+
+      setShowShopModal(false)
+      setEditingItem(null)
+      setItemForm({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "" })
+      fetchShop()
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  async function handleDeleteShopItem(itemId) {
+    if (!confirm("Voulez-vous vraiment supprimer cet article de la boutique ?")) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/shop/${itemId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        fetchShop()
+      }
+    } catch (e) {
+      alert("Erreur: " + e.message)
+    }
+  }
+
+  async function handleAdjustBalance() {
+    if (!balanceModalUser || adjustAmount <= 0) return
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/economy/balance`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: balanceModalUser.userId,
+          amount: Number(adjustAmount),
+          action: adjustAction
+        })
+      })
+
+      if (res.ok) {
+        setBalanceModalUser(null)
+        fetchEconomyLeaderboard()
+      }
+    } catch (e) {
+      alert("Erreur: " + e.message)
     }
   }
 
@@ -391,63 +646,19 @@ export default function GuildPage() {
               </div>
             </div>
 
-            {/* Alerte si le bot n'est pas dans la guilde */}
-            {!botInGuild && (
-              <div className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6 backdrop-blur-xl">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300">
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-amber-200">God_Sparky n'a pas encore rejoint ce serveur</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-amber-200/80">
-                      Pour configurer les salons, rôles et protections automatiques, vous devez d'abord inviter le bot avec les permissions requises. Une fois l'invitation effectuée sur Discord, rechargez simplement cette page.
-                    </p>
-                    <div className="mt-4">
-                      <a
-                        href={inviteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 transition hover:bg-amber-400"
-                      >
-                        Autoriser et inviter sur Discord →
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Menu d'onglets de configuration */}
+            {/* Menu d'onglets de configuration complet */}
             {botInGuild && (
               <>
                 <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
-                  <TabButton
-                    active={activeTab === "channels"}
-                    onClick={() => setActiveTab("channels")}
-                    icon="📌"
-                    label="Salons & Rôles"
-                  />
-                  <TabButton
-                    active={activeTab === "security"}
-                    onClick={() => setActiveTab("security")}
-                    icon="🛡️"
-                    label="Sécurité & Modération"
-                  />
-                  <TabButton
-                    active={activeTab === "words"}
-                    onClick={() => setActiveTab("words")}
-                    icon="🚫"
-                    label={`Mots Interdits (${config?.badWords?.length || 0})`}
-                  />
-                  <TabButton
-                    active={activeTab === "settings"}
-                    onClick={() => setActiveTab("settings")}
-                    icon="⚙️"
-                    label="Langue & Général"
-                  />
+                  <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label="Salons & Rôles" />
+                  <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label="Sécurité" />
+                  <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label="Économie & Shop" />
+                  <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label="Niveaux & XP" />
+                  <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label="Tickets" />
+                  <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label="Embed Builder" />
+                  <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label="Sanctions Web" />
+                  <TabButton active={activeTab === "words"} onClick={() => setActiveTab("words")} icon="🚫" label={`Mots Interdits (${config?.badWords?.length || 0})`} />
+                  <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon="⚙️" label="Général" />
                 </div>
 
                 {/* Section 1 : Salons & Rôles */}
@@ -525,7 +736,7 @@ export default function GuildPage() {
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                       <Toggle
                         label="Protection Anti-Lien (Anti-Link)"
-                        description="Supprime automatiquement les liens d'invitation Discord et URL douteuses publiées par les membres non-administrateurs."
+                        description="Supprime automatiquement les liens d'invitation Discord et URLs non autorisées publiées par les membres."
                         checked={Boolean(config?.antilink)}
                         onChange={v => updateField("antilink", v)}
                       />
@@ -563,7 +774,750 @@ export default function GuildPage() {
                   </div>
                 )}
 
-                {/* Section 3 : Mots Interdits */}
+                {/* Section 3 : Économie & Boutique (Shop) */}
+                {activeTab === "economy" && (
+                  <div className="space-y-8">
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Configuration de la Monnaie & des Gains</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Personnalisez le nom, le symbole et les montants accordés aux membres.
+                      </p>
+
+                      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Symbole de la monnaie</label>
+                          <div className="mt-2 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={config?.currencySymbol ?? "$"}
+                              maxLength={6}
+                              onChange={e => updateField("currencySymbol", e.target.value)}
+                              className="w-24 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-center text-lg font-bold text-white outline-none focus:border-indigo-500"
+                            />
+                            <div className="flex flex-wrap gap-1">
+                              {["🪙", "💎", "⚡", "$", "€"].map(sym => (
+                                <button
+                                  key={sym}
+                                  type="button"
+                                  onClick={() => updateField("currencySymbol", sym)}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs hover:bg-white/10"
+                                >
+                                  {sym}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Nom de la monnaie</label>
+                          <input
+                            type="text"
+                            value={config?.currencyName ?? "Coins"}
+                            onChange={e => updateField("currencyName", e.target.value)}
+                            placeholder="Ex: Sparks, Pièces..."
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Récompense journalière (/daily)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={config?.dailyAmount ?? 500}
+                            onChange={e => updateField("dailyAmount", Number(e.target.value))}
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Salaire minimum (/work)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={config?.workMin ?? 50}
+                            onChange={e => updateField("workMin", Number(e.target.value))}
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Salaire maximum (/work)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={config?.workMax ?? 250}
+                            onChange={e => updateField("workMax", Number(e.target.value))}
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-xs font-semibold text-slate-300">Gain par message chat (Chat-to-Earn)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={config?.chatReward ?? 0}
+                            onChange={e => updateField("chatReward", Number(e.target.value))}
+                            placeholder="0 pour désactiver"
+                            className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <Toggle
+                          label="Autoriser les vols d'argent (/rob)"
+                          description="Permet aux membres de tenter de voler une partie du solde d'autres membres avec une chance d'amende si pris."
+                          checked={Boolean(config?.robEnabled)}
+                          onChange={v => updateField("robEnabled", v)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Gestionnaire de Boutique (Shop Manager) */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Articles de la Boutique (/shop)</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Proposez des rôles exclusifs ou des objets virtuels achetables avec l'argent du serveur.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItem(null)
+                            setItemForm({ name: "", description: "", price: 200, stock: -1, type: "role", roleId: roles[0]?.id || "" })
+                            setShowShopModal(true)
+                          }}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
+                        >
+                          + Ajouter un article
+                        </button>
+                      </div>
+
+                      {shopLoading ? (
+                        <div className="mt-6 h-32 animate-pulse rounded-2xl bg-slate-950/40" />
+                      ) : shopItems.length > 0 ? (
+                        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                          {shopItems.map(item => (
+                            <div
+                              key={item.itemId || item._id}
+                              className="flex flex-col justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-5 transition hover:border-white/15"
+                            >
+                              <div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3 className="font-bold text-white">{item.name}</h3>
+                                  <span className="rounded-lg bg-indigo-500/15 px-2 py-0.5 text-xs font-bold text-indigo-300 ring-1 ring-indigo-500/30">
+                                    {item.price} {config?.currencySymbol || "$"}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-relaxed text-slate-400">
+                                  {item.description || "Aucune description"}
+                                </p>
+                              </div>
+
+                              <div className="mt-4 pt-3 border-t border-white/5">
+                                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                  <span>Type : <strong className="text-slate-300">{item.type === "role" ? "🎭 Rôle Discord" : "📦 Objet"}</strong></span>
+                                  <span>Stock : <strong className="text-slate-300">{item.stock === -1 ? "Illimité" : item.stock}</strong></span>
+                                </div>
+
+                                <div className="mt-3 flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingItem(item)
+                                      setItemForm({
+                                        name: item.name,
+                                        description: item.description,
+                                        price: item.price,
+                                        stock: item.stock,
+                                        type: item.type,
+                                        roleId: item.roleId || ""
+                                      })
+                                      setShowShopModal(true)
+                                    }}
+                                    className="flex-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/10"
+                                  >
+                                    Modifier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteShopItem(item.itemId)}
+                                    className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 hover:bg-rose-500/20"
+                                  >
+                                    Supprimer
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-8 text-center">
+                          <p className="text-sm text-slate-400">La boutique est vide pour l'instant.</p>
+                          <p className="mt-1 text-xs text-slate-500">Ajoutez un rôle ou un article pour inciter vos membres à être actifs !</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Classement Économie */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Classement des Membres les Plus Riches</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Top des utilisateurs selon leur solde ({config?.currencyName || "Coins"}).
+                      </p>
+
+                      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                        <table className="w-full text-left text-sm">
+                          <thead className="border-b border-white/10 bg-white/5 text-xs text-slate-400">
+                            <tr>
+                              <th className="px-4 py-3">Rang</th>
+                              <th className="px-4 py-3">Membre</th>
+                              <th className="px-4 py-3">Solde</th>
+                              <th className="px-4 py-3 text-right">Actions Admin</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5 text-slate-300">
+                            {economyLeaderboard.map(user => (
+                              <tr key={user.userId} className="hover:bg-white/[0.02]">
+                                <td className="px-4 py-3 font-bold text-white">
+                                  {user.rank === 1 ? "🥇 #1" : user.rank === 2 ? "🥈 #2" : user.rank === 3 ? "🥉 #3" : `#${user.rank}`}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    {user.avatarUrl ? (
+                                      <img src={user.avatarUrl} alt={user.username} className="h-7 w-7 rounded-full object-cover" />
+                                    ) : (
+                                      <div className="h-7 w-7 rounded-full bg-indigo-600/20 text-center font-bold text-xs leading-7 text-indigo-300">?</div>
+                                    )}
+                                    <span className="font-semibold text-white">{user.username}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 font-mono font-bold text-emerald-400">
+                                  {user.balance.toLocaleString()} {config?.currencySymbol || "$"}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBalanceModalUser(user)
+                                      setAdjustAmount(500)
+                                      setAdjustAction("add")
+                                    }}
+                                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:bg-white/10"
+                                  >
+                                    ⚙️ Gérer solde
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {economyLeaderboard.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                                  Aucun utilisateur n'a encore de compte d'économie sur ce serveur.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 4 : Niveaux & XP */}
+                {activeTab === "leveling" && (
+                  <div className="space-y-8">
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Système d'Expérience & Niveaux</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Récompensez l'activité des membres sur votre serveur Discord.
+                      </p>
+
+                      <div className="mt-6 space-y-4">
+                        <Toggle
+                          label="Activer le système de niveaux et d'XP"
+                          description="Les membres reçoivent de l'expérience aléatoire (15 à 30 XP) à chaque message envoyé avec un délai d'une minute."
+                          checked={config?.xpEnabled !== false}
+                          onChange={v => updateField("xpEnabled", v)}
+                        />
+
+                        <SelectField
+                          label="Salon d'annonce des passages de niveau"
+                          description="Où envoyer le message de félicitations lors d'un level up."
+                          value={config?.xpChannelId}
+                          onChange={val => updateField("xpChannelId", val)}
+                          options={[
+                            { id: "", name: "Dans le salon où le message a été envoyé (défaut)" },
+                            { id: "none", name: "Désactiver les annonces (silencieux)" },
+                            ...textChannels
+                          ]}
+                          placeholder="Même salon que le message"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Rôles de Récompenses (Level Rewards) */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Rôles de Paliers (Level Rewards)</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Attribuez automatiquement des rôles Discord lorsqu'un membre atteint un niveau spécifique.
+                      </p>
+
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="w-full sm:w-36">
+                          <label className="text-xs font-semibold text-slate-400">Niveau requis</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={newLevelRoleLevel}
+                            onChange={e => setNewLevelRoleLevel(Number(e.target.value))}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        <div className="flex-1">
+                          <label className="text-xs font-semibold text-slate-400">Rôle attribué</label>
+                          <select
+                            value={newLevelRoleRoleId}
+                            onChange={e => setNewLevelRoleRoleId(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                          >
+                            <option value="">Sélectionner un rôle...</option>
+                            {roles.map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="sm:self-end">
+                          <button
+                            type="button"
+                            onClick={addLevelRole}
+                            disabled={!newLevelRoleRoleId}
+                            className="w-full rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                          >
+                            + Lier le rôle
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="mt-6">
+                        {Array.isArray(config?.levelRoles) && config.levelRoles.length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {config.levelRoles.map(lr => {
+                              const roleObj = roles.find(r => r.id === lr.roleId)
+                              return (
+                                <div
+                                  key={lr.level}
+                                  className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-4"
+                                >
+                                  <div>
+                                    <span className="rounded-lg bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/30">
+                                      Niveau {lr.level}
+                                    </span>
+                                    <p className="mt-2 font-semibold text-white">
+                                      {roleObj?.name || `Rôle ID: ${lr.roleId}`}
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLevelRole(lr.level)}
+                                    className="text-slate-400 hover:text-rose-400"
+                                    title="Supprimer ce palier"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-400">
+                            Aucun palier de niveau configuré pour l'instant.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Classement XP */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Classement d'Expérience des Membres</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Top des utilisateurs ayant accumulé le plus d'XP.
+                      </p>
+
+                      <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                        <table className="w-full text-left text-sm">
+                          <thead className="border-b border-white/10 bg-white/5 text-xs text-slate-400">
+                            <tr>
+                              <th className="px-4 py-3">Rang</th>
+                              <th className="px-4 py-3">Membre</th>
+                              <th className="px-4 py-3">Niveau</th>
+                              <th className="px-4 py-3">XP Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5 text-slate-300">
+                            {xpLeaderboard.map(u => (
+                              <tr key={u.userId} className="hover:bg-white/[0.02]">
+                                <td className="px-4 py-3 font-bold text-white">
+                                  {u.rank === 1 ? "🥇 #1" : u.rank === 2 ? "🥈 #2" : u.rank === 3 ? "🥉 #3" : `#${u.rank}`}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    {u.avatarUrl ? (
+                                      <img src={u.avatarUrl} alt={u.username} className="h-7 w-7 rounded-full object-cover" />
+                                    ) : (
+                                      <div className="h-7 w-7 rounded-full bg-indigo-600/20 text-center font-bold text-xs leading-7 text-indigo-300">?</div>
+                                    )}
+                                    <span className="font-semibold text-white">{u.username}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="rounded-lg bg-indigo-500/15 px-2 py-0.5 text-xs font-bold text-indigo-300 ring-1 ring-indigo-500/30">
+                                    Niveau {u.level}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 font-mono font-bold text-slate-200">
+                                  {u.xp.toLocaleString()} XP
+                                </td>
+                              </tr>
+                            ))}
+                            {xpLeaderboard.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                                  Aucun niveau enregistré pour le moment.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 5 : Tickets Support */}
+                {activeTab === "tickets" && (
+                  <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                    <h2 className="text-lg font-bold text-white">Système de Tickets d'Assistance</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Permet aux membres d'ouvrir des salons privés d'assistance avec l'équipe du serveur.
+                    </p>
+
+                    <div className="mt-6 space-y-4">
+                      <Toggle
+                        label="Activer le système de tickets"
+                        description="Active la gestion automatique des tickets pour votre serveur."
+                        checked={Boolean(config?.ticketEnabled)}
+                        onChange={v => updateField("ticketEnabled", v)}
+                      />
+
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <SelectField
+                          label="Catégorie Discord des tickets"
+                          description="Catégorie sous laquelle les salons de tickets seront créés."
+                          value={config?.ticketCategoryId}
+                          onChange={val => updateField("ticketCategoryId", val)}
+                          options={categoryChannels}
+                          placeholder="Sélectionner une catégorie"
+                        />
+
+                        <SelectField
+                          label="Rôle du Support"
+                          description="Rôle Discord qui aura la permission de voir et répondre dans les tickets."
+                          value={config?.ticketSupportRoleId}
+                          onChange={val => updateField("ticketSupportRoleId", val)}
+                          options={roles}
+                          placeholder="Sélectionner un rôle"
+                        />
+
+                        <SelectField
+                          label="Salon des Logs de tickets"
+                          description="Salon où les événements et fermetures de tickets seront notifiés."
+                          value={config?.ticketLogChannelId}
+                          onChange={val => updateField("ticketLogChannelId", val)}
+                          options={textChannels}
+                          placeholder="Sélectionner un salon de logs"
+                        />
+                      </div>
+
+                      <div className="mt-6 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-5">
+                        <h4 className="text-sm font-bold text-indigo-200">💡 Comment envoyer le panneau de ticket ?</h4>
+                        <p className="mt-1 text-xs leading-relaxed text-indigo-300/80">
+                          Une fois les paramètres ci-dessus configurés et enregistrés, vous pouvez utiliser la commande Discord <code>/ticket setup</code> ou utiliser l'onglet <strong>Embed Builder</strong> pour créer un message d'accueil pour vos membres !
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 6 : Constructeur d'Embeds (Embed Builder) */}
+                {activeTab === "embeds" && (
+                  <div className="space-y-6">
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Constructeur d'Annonces & d'Embeds Visuels</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Composez un message riche avec prévisualisation Discord en direct et envoyez-le instantanément via God_Sparky.
+                      </p>
+
+                      <div className="mt-6 grid gap-8 lg:grid-cols-2">
+                        {/* Formulaire à gauche */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Salon Discord de destination</label>
+                            <select
+                              value={embedForm.channelId}
+                              onChange={e => setEmbedForm({ ...embedForm, channelId: e.target.value })}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            >
+                              {textChannels.map(ch => (
+                                <option key={ch.id} value={ch.id}>
+                                  # {ch.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Titre de l'embed</label>
+                            <input
+                              type="text"
+                              value={embedForm.title}
+                              onChange={e => setEmbedForm({ ...embedForm, title: e.target.value })}
+                              placeholder="Titre..."
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Description (Supporte Markdown)</label>
+                            <textarea
+                              rows={5}
+                              value={embedForm.description}
+                              onChange={e => setEmbedForm({ ...embedForm, description: e.target.value })}
+                              placeholder="Texte de l'annonce..."
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Couleur de l'embed</label>
+                            <div className="mt-1 flex items-center gap-3">
+                              <input
+                                type="color"
+                                value={embedForm.color}
+                                onChange={e => setEmbedForm({ ...embedForm, color: e.target.value })}
+                                className="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-slate-950 p-1"
+                              />
+                              <div className="flex flex-wrap gap-1">
+                                {["#6366F1", "#10B981", "#EF4444", "#F59E0B", "#EC4899", "#3B82F6"].map(c => (
+                                  <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => setEmbedForm({ ...embedForm, color: c })}
+                                    style={{ backgroundColor: c }}
+                                    className="h-6 w-6 rounded-lg ring-1 ring-white/20 transition hover:scale-110"
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-xs font-semibold text-slate-300">URL Image (Bannière)</label>
+                              <input
+                                type="url"
+                                value={embedForm.image}
+                                onChange={e => setEmbedForm({ ...embedForm, image: e.target.value })}
+                                placeholder="https://..."
+                                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-slate-300">URL Miniature (Thumbnail)</label>
+                              <input
+                                type="url"
+                                value={embedForm.thumbnail}
+                                onChange={e => setEmbedForm({ ...embedForm, thumbnail: e.target.value })}
+                                placeholder="https://..."
+                                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Pied de page (Footer)</label>
+                            <input
+                              type="text"
+                              value={embedForm.footer}
+                              onChange={e => setEmbedForm({ ...embedForm, footer: e.target.value })}
+                              placeholder="Texte du bas..."
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="pt-2">
+                            <button
+                              type="button"
+                              onClick={handleSendEmbed}
+                              disabled={sendingEmbed}
+                              className="w-full rounded-2xl bg-indigo-600 px-6 py-3 font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:opacity-50"
+                            >
+                              {sendingEmbed ? "Envoi en cours sur Discord..." : "🚀 Envoyer l'annonce sur Discord"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Prévisualisation en direct à droite */}
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Prévisualisation Discord en direct
+                          </label>
+
+                          <div className="mt-2 rounded-2xl border border-white/10 bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                            <div className="flex items-center gap-3">
+                              {bot?.avatarUrl ? (
+                                <img src={bot.avatarUrl} alt="Bot" className="h-10 w-10 rounded-full" />
+                              ) : (
+                                <div className="h-10 w-10 rounded-full bg-indigo-600 grid place-items-center font-bold text-white">G</div>
+                              )}
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-white">{bot?.username || "God_Sparky"}</span>
+                                  <span className="rounded bg-[#5865f2] px-1 py-0.2 text-[10px] font-bold text-white">BOT</span>
+                                </div>
+                                <span className="text-[11px] text-[#949ba4]">Aujourd'hui à {new Date().toLocaleTimeString().slice(0, 5)}</span>
+                              </div>
+                            </div>
+
+                            {/* Embed Card */}
+                            <div
+                              className="mt-3 flex overflow-hidden rounded-lg bg-[#2b2d31] border-l-4 p-4"
+                              style={{ borderColor: embedForm.color }}
+                            >
+                              <div className="flex-1 space-y-2">
+                                {embedForm.title && (
+                                  <h4 className="font-bold text-white leading-tight">{embedForm.title}</h4>
+                                )}
+                                <p className="text-xs leading-relaxed whitespace-pre-wrap text-[#dbdee1]">
+                                  {embedForm.description || "Tapez du texte à gauche pour voir la prévisualisation..."}
+                                </p>
+                                {embedForm.image && (
+                                  <img src={embedForm.image} alt="Bannière" className="mt-3 max-h-48 w-full rounded-lg object-cover" />
+                                )}
+                                {embedForm.footer && (
+                                  <div className="mt-3 text-[10px] text-[#949ba4] border-t border-white/5 pt-2">
+                                    {embedForm.footer}
+                                  </div>
+                                )}
+                              </div>
+
+                              {embedForm.thumbnail && (
+                                <img src={embedForm.thumbnail} alt="Thumbnail" className="ml-4 h-16 w-16 rounded-lg object-cover" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 7 : Sanctions & Modération Web */}
+                {activeTab === "warns" && (
+                  <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h2 className="text-lg font-bold text-white">Historique des Sanctions & Avertissements (Warns)</h2>
+                        <p className="mt-1 text-sm text-slate-400">
+                          Gérez en direct les sanctions appliquées par God_Sparky ou l'équipe de modération.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchWarns}
+                        className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                      >
+                        Rafraîchir
+                      </button>
+                    </div>
+
+                    <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                      <table className="w-full text-left text-sm">
+                        <thead className="border-b border-white/10 bg-white/5 text-xs text-slate-400">
+                          <tr>
+                            <th className="px-4 py-3">Membre Sanctionné</th>
+                            <th className="px-4 py-3">Avertissements Actifs</th>
+                            <th className="px-4 py-3">Motifs récents</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 text-slate-300">
+                          {warnsList.map(w => (
+                            <tr key={w.userId} className="hover:bg-white/[0.02]">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  {w.avatarUrl ? (
+                                    <img src={w.avatarUrl} alt={w.username} className="h-7 w-7 rounded-full object-cover" />
+                                  ) : (
+                                    <div className="h-7 w-7 rounded-full bg-rose-600/20 text-center font-bold text-xs leading-7 text-rose-300">!</div>
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-white">{w.username}</p>
+                                    <p className="text-[11px] font-mono text-slate-500">ID: {w.userId}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-bold text-rose-300 ring-1 ring-rose-500/30">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse" />
+                                  {w.warnCount} avertissement(s)
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {w.reasons.slice(-3).map((r, i) => (
+                                    <span key={i} className="rounded-md bg-white/5 px-2 py-0.5 text-[11px] text-slate-300">
+                                      {r}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRevokeWarn(w.userId)}
+                                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+                                >
+                                  - Révoquer 1 warn
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {warnsList.length === 0 && !warnsLoading && (
+                            <tr>
+                              <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
+                                ✨ Aucun avertissement actif sur ce serveur. Tout est calme !
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 8 : Mots Interdits */}
                 {activeTab === "words" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
                     <h2 className="text-lg font-bold text-white">Liste des Mots Interdits</h2>
@@ -571,7 +1525,6 @@ export default function GuildPage() {
                       Les messages contenant ces termes seront automatiquement supprimés si le filtre Anti-Insultes est activé.
                     </p>
 
-                    {/* Formulaire d'ajout */}
                     <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="relative flex-1">
                         <input
@@ -597,7 +1550,6 @@ export default function GuildPage() {
                       </button>
                     </div>
 
-                    {/* Liste des tags */}
                     <div className="mt-6">
                       {Array.isArray(config?.badWords) && config.badWords.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
@@ -630,7 +1582,7 @@ export default function GuildPage() {
                   </div>
                 )}
 
-                {/* Section 4 : Langue & Général */}
+                {/* Section 9 : Langue & Général */}
                 {activeTab === "settings" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
                     <h2 className="text-lg font-bold text-white">Langue et Préférences</h2>
@@ -682,7 +1634,7 @@ export default function GuildPage() {
       {/* Barre d'action fixe en bas lors de modifications */}
       {hasChanges && (
         <div className="fixed bottom-6 inset-x-0 z-50 px-4">
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl border border-indigo-500/30 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10 animate-slide-up">
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl border border-indigo-500/30 bg-slate-900/90 p-4 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
             <div className="flex items-center gap-3">
               <span className="flex h-3 w-3 rounded-full bg-amber-400 animate-ping" />
               <p className="text-sm font-medium text-slate-200">
@@ -742,6 +1694,194 @@ export default function GuildPage() {
               </svg>
             )}
             <span className="text-sm font-medium">{saveMessage.text}</span>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CRÉATION / ÉDITION ARTICLE BOUTIQUE */}
+      {showShopModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">
+              {editingItem ? "Modifier l'article" : "Ajouter un article à la boutique"}
+            </h3>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Nom de l'article</label>
+                <input
+                  type="text"
+                  value={itemForm.name}
+                  onChange={e => setItemForm({ ...itemForm, name: e.target.value })}
+                  placeholder="Ex: Rôle VIP, Épée Légendaire..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Description</label>
+                <textarea
+                  value={itemForm.description}
+                  onChange={e => setItemForm({ ...itemForm, description: e.target.value })}
+                  rows={2}
+                  placeholder="Avantages de cet article..."
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Prix ({config?.currencySymbol || "$"})</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={itemForm.price}
+                    onChange={e => setItemForm({ ...itemForm, price: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Stock (-1 = Illimité)</label>
+                  <input
+                    type="number"
+                    min={-1}
+                    value={itemForm.stock}
+                    onChange={e => setItemForm({ ...itemForm, stock: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Type d'article</label>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setItemForm({ ...itemForm, type: "role" })}
+                    className={`rounded-xl border p-2.5 text-xs font-bold transition ${
+                      itemForm.type === "role"
+                        ? "border-indigo-500 bg-indigo-600 text-white"
+                        : "border-white/10 bg-slate-950 text-slate-300 hover:border-white/20"
+                    }`}
+                  >
+                    🎭 Rôle Discord
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setItemForm({ ...itemForm, type: "item" })}
+                    className={`rounded-xl border p-2.5 text-xs font-bold transition ${
+                      itemForm.type === "item"
+                        ? "border-indigo-500 bg-indigo-600 text-white"
+                        : "border-white/10 bg-slate-950 text-slate-300 hover:border-white/20"
+                    }`}
+                  >
+                    📦 Objet Virtuel
+                  </button>
+                </div>
+              </div>
+
+              {itemForm.type === "role" && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-300">Rôle Discord attribué à l'achat</label>
+                  <select
+                    value={itemForm.roleId || ""}
+                    onChange={e => setItemForm({ ...itemForm, roleId: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Sélectionnez un rôle...</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowShopModal(false)}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveShopItem}
+                className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-500"
+              >
+                Enregistrer l'article
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL AJUSTEMENT DU SOLDE ADMIN */}
+      {balanceModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">Gérer le solde de {balanceModalUser.username}</h3>
+            <p className="mt-1 text-xs text-slate-400">
+              Solde actuel : <strong className="text-emerald-400 font-mono">{balanceModalUser.balance} {config?.currencySymbol || "$"}</strong>
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Action</label>
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  {[
+                    { id: "add", label: "+ Ajouter" },
+                    { id: "remove", label: "- Retirer" },
+                    { id: "set", label: "= Définir" }
+                  ].map(act => (
+                    <button
+                      key={act.id}
+                      type="button"
+                      onClick={() => setAdjustAction(act.id)}
+                      className={`rounded-xl border py-2 text-xs font-bold ${
+                        adjustAction === act.id
+                          ? "border-indigo-500 bg-indigo-600 text-white"
+                          : "border-white/10 bg-slate-950 text-slate-300"
+                      }`}
+                    >
+                      {act.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Montant ({config?.currencySymbol || "$"})</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={adjustAmount}
+                  onChange={e => setAdjustAmount(Math.max(1, Number(e.target.value)))}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setBalanceModalUser(null)}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleAdjustBalance}
+                className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-500"
+              >
+                Confirmer l'ajustement
+              </button>
+            </div>
           </div>
         </div>
       )}

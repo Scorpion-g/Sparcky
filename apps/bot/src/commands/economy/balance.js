@@ -1,5 +1,6 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const User = require("../../models/User");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -35,25 +36,35 @@ module.exports = {
 
     await interaction.deferReply();
 
+    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+    const currencySymbol = guildConfig?.currencySymbol || "$";
+    const currencyName = guildConfig?.currencyName || "Coins";
+
     const user = await User.findOne({
       userId: targetUserId,
       guildId: interaction.guild.id,
     });
 
-    if (!user) {
-      await interaction.editReply(
-        await interaction.t("ECONOMY.MONEY.NO_ACCOUNT", { userId: targetUserId }),
-      );
-      return;
-    }
+    const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+    const balance = user ? (user.balance || 0) : 0;
 
-    await interaction.editReply(
-      targetUserId === interaction.member.id
-        ? await interaction.t("ECONOMY.MONEY.SELF", { balance: user.balance })
-        : await interaction.t("ECONOMY.MONEY.OTHER", {
-            userId: targetUserId,
-            balance: user.balance,
-          }),
-    );
+    const embed = new EmbedBuilder()
+      .setColor("#6366F1")
+      .setAuthor({
+        name: targetMember?.user?.tag || `Utilisateur ${targetUserId}`,
+        iconURL: targetMember?.user?.displayAvatarURL() || null
+      })
+      .setTitle(`💰 Solde ${currencyName}`)
+      .setDescription(
+        targetUserId === interaction.member.id
+          ? `Vous possédez actuellement **${balance} ${currencySymbol}**.`
+          : `<@${targetUserId}> possède actuellement **${balance} ${currencySymbol}**.`
+      )
+      .addFields(
+        { name: "Articles possédés", value: `${user?.items?.length || 0} article(s)`, inline: true }
+      )
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [embed] });
   },
 };

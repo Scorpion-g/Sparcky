@@ -230,12 +230,22 @@ module.exports = {
       await shopItem.save();
 
       if (shopItem.type === "role") {
-        const role = interaction.guild.roles.cache.find(
-          (r) => r.name === shopItem.name,
-        );
+        let role = null;
+        if (shopItem.roleId) {
+          role = interaction.guild.roles.cache.get(shopItem.roleId);
+        }
+        if (!role) {
+          role = interaction.guild.roles.cache.find(
+            (r) => r.name.toLowerCase() === shopItem.name.toLowerCase(),
+          );
+        }
         if (role) {
-          const member = await interaction.guild.members.fetch(userId);
-          await member.roles.add(role);
+          const member = await interaction.guild.members.fetch(userId).catch(() => null);
+          if (member) {
+            await member.roles.add(role).catch(err => {
+              console.error("Erreur attribution rôle boutique:", err?.message);
+            });
+          }
         }
       }
 

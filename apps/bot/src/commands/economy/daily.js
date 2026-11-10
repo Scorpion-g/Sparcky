@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require("discord.js");
 const User = require("../../models/User");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
 
 const dailyAmount = 500;
@@ -23,6 +24,10 @@ module.exports = {
     try {
       await interaction.deferReply();
 
+      const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+      const dailyAmount = guildConfig?.dailyAmount ?? 500;
+      const currencySymbol = guildConfig?.currencySymbol || "$";
+
       const query = {
         userId: interaction.member.id,
         guildId: interaction.guild.id,
@@ -30,17 +35,19 @@ module.exports = {
 
       let user = await User.findOne(query);
 
-      if (user) {
-        const lastDailyDate = user.lastDaily.toDateString();
+      if (user && user.lastDaily) {
+        const lastDailyDate = new Date(user.lastDaily).toDateString();
         const currentDate = new Date().toDateString();
 
         if (lastDailyDate === currentDate) {
           await interaction.editReply(
-            await interaction.t("ECONOMY.DAILY.ALREADY_CLAIMED"),
+            `⏳ Vous avez déjà récupéré votre récompense aujourd'hui ! Revenez demain.`
           );
           return;
         }
 
+        user.lastDaily = new Date();
+      } else if (user) {
         user.lastDaily = new Date();
       } else {
         user = new User({
@@ -49,14 +56,11 @@ module.exports = {
         });
       }
 
-      user.balance += dailyAmount;
+      user.balance = (user.balance || 0) + dailyAmount;
       await user.save();
 
       await interaction.editReply(
-        await interaction.t("ECONOMY.DAILY.CLAIMED", {
-          amount: dailyAmount,
-          balance: user.balance,
-        }),
+        `🎉 Vous avez reçu votre récompense quotidienne de **${dailyAmount} ${currencySymbol}** !\n💰 Nouveau solde : **${user.balance} ${currencySymbol}**.`
       );
     } catch (error) {
       logger.error(`Il y a une erreur avec /daily : ${error}`);
