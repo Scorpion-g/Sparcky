@@ -1,0 +1,22 @@
+{
+  "name": "sparcky-monorepo",
+  "version": "1.0.0",
+  "description": "Monorepo pour le bot Discord Sparcky et son panel d'administration",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n BOT,API,PANEL -c green,blue,magenta \"npm run dev --workspace @sparcky/bot\" \"npm run dev --workspace @sparcky/api\" \"npm run dev --workspace @sparcky/panel\"",
+    "dev:bot": "npm run dev --workspace @sparcky/bot",
+    "dev:api": "npm run dev --workspace @sparcky/api",
+    "dev:panel": "npm run dev --workspace @sparcky/panel",
+    "build": "npm run build --workspace @sparcky/panel",
+    "lint": "npm run lint --workspace @sparcky/bot && npm run lint --workspace @sparcky/panel",
+    "test": "npm run test --workspace @sparcky/bot"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

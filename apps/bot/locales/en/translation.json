@@ -1,0 +1,520 @@
+{
+  "COMMON": {
+    "DEFAULT_REASON": "No reason provided",
+    "REASON": "Reason",
+    "DURATION": "Duration"
+  },
+  "ERRORS": {
+    "NO_PERMISSION": "❌ You do not have permission!",
+    "MEMBER_NOT_FOUND": "The member does not exist.",
+    "COMMAND_FAILED": "❌ An error occurred while executing this command.",
+    "ROLE_NOT_FOUND": "❌ This role no longer exists.",
+    "CANNOT_EDIT_ROLES": "❌ I can't edit your roles. Please check my permissions.",
+
+    "MEMBER_NOT_IN_GUILD": "The mentioned member is not in this server.",
+    "CANNOT_SANCTION_OWNER": "❌ You can't take action on the server owner.",
+    "ROLE_TOO_HIGH_TARGET": "❌ You can't {{action}} this member (their role is higher or equal to yours).",
+    "ROLE_TOO_HIGH_BOT": "❌ I can't {{action}} this member (their role is too high).",
+
+    "CANNOT_TIMEOUT_BOT": "❌ I can't timeout a bot.",
+    "INVALID_DURATION": "❌ Please enter a valid duration.",
+    "DURATION_OUT_OF_RANGE": "❌ Timeout duration must be between 5s and 28d.",
+    "GUILD_ONLY": "❌ This command can only be used in a server."
+  },
+  "SUCCESS": {
+    "WARN_SENT": "⚠️ Member {{member}} has been warned for: {{reason}}",
+    "ROLE_ADDED": "✅ The role **{{role}}** has been added.",
+    "ROLE_REMOVED": "❌ The role **{{role}}** has been removed."
+  },
+  "CONFIG": {
+    "LANGUAGE": {
+      "TITLE": "Language updated",
+      "UPDATED": "Bot language set to: **{{language}}**"
+    }
+  },
+  "MENTION": {
+    "TITLE": "Hi, {{username}}!",
+    "DESCRIPTION": "Thanks for mentioning me!",
+    "COMMANDS": {
+      "TITLE": "Available commands",
+      "EMPTY": "No commands available."
+    },
+    "INVITE": {
+      "TITLE": "Invite",
+      "VALUE": "[Add the bot to your server](https://discord.com/oauth2/authorize?client_id={{clientId}}&scope=bot%20applications.commands&permissions=8)"
+    },
+    "SUPPORT": {
+      "TITLE": "Support",
+      "VALUE": "[Join our support server](https://discord.gg/your-invite-link)"
+    },
+    "FOOTER": "Bot developed by Scorpion"
+  },
+  "LEVELING": {
+    "LEVEL_UP": {
+      "TITLE": "✨ Level Up!",
+      "DESCRIPTION": "{{member}} reached **level {{level}}**!"
+    }
+  },
+  "MODERATION": {
+    "BAN": {
+      "SUCCESS": "Member {{member}} has been banned.\nReason: {{reason}}",
+      "DM": "You have been banned from {{guild}} by {{moderator}}.\nReason: {{reason}}",
+      "LOG": {
+        "TITLE": "📋 Ban log",
+        "DESCRIPTION": "{{member}} was banned by {{moderator}}"
+      }
+    },
+    "UNBAN": {
+      "NOT_BANNED": "❌ No banned user with ID **{{memberId}}** was found.",
+      "TITLE": "✅ Unban",
+      "DESCRIPTION": "**{{tag}}** has been unbanned.",
+      "FIELDS": {
+        "ID": "ID",
+        "MODERATOR": "Moderator"
+      },
+      "DM": {
+        "TITLE": "✅ You have been unbanned",
+        "DESCRIPTION": "You have been unbanned from **{{guild}}**"
+      },
+      "LOG": {
+        "TITLE": "📋 Unban log",
+        "DESCRIPTION": "**{{tag}}** has been unbanned."
+      }
+    },
+    "WARN": {
+      "TITLE": "⚠️ Warn",
+      "DESCRIPTION": "Member {{member}} has been warned.",
+      "FIELDS": {
+        "TOTAL": "Total warns"
+      },
+      "DM": {
+        "TITLE": "⚠️ You have been warned in {{guild}}"
+      },
+      "LOG": {
+        "TITLE": "📋 Warn log",
+        "DESCRIPTION": "{{member}} was warned by {{moderator}}"
+      }
+    },
+    "UNWARN": {
+      "TITLE": "✅ Unwarn",
+      "DESCRIPTION": "{{member}} has been unwarned.",
+      "NEVER_WARNED": "❌ {{member}} has never been warned.",
+      "NO_WARNS_LEFT": "❌ {{member}} has no warns left.",
+      "FIELDS": {
+        "REMOVED": "Warns removed",
+        "REMAINING": "Warns remaining",
+        "BEFORE": "Warns before"
+      },
+      "DM": {
+        "TITLE": "✅ You have been unwarned in {{guild}}"
+      },
+      "LOG": {
+        "TITLE": "📋 Unwarn log",
+        "DESCRIPTION": "{{member}} was unwarned by {{moderator}}"
+      }
+    },
+    "KICK": {
+      "SUCCESS": "Member {{member}} has been kicked.\nReason: {{reason}}",
+      "DM": "You have been kicked from {{guild}}.\nReason: {{reason}}",
+      "LOG": {
+        "TITLE": "📋 Kick log",
+        "DESCRIPTION": "{{member}} was kicked by {{moderator}}"
+      }
+    },
+    "TIMEOUT": {
+      "SUCCESS": "{{member}} has been timed out for {{duration}}.\nReason: {{reason}}",
+      "UPDATED": "{{member}}'s timeout has been updated for {{duration}}.\nReason: {{reason}}",
+      "DM": "You have been timed out in {{guild}} by {{moderator}} for {{duration}}.\nReason: {{reason}}",
+      "LOG": {
+        "TITLE": "📋 Timeout log",
+        "DESCRIPTION": "{{member}} was timed out by {{moderator}}"
+      }
+    }
+  },
+  "BADWORDS": {
+    "INVALID_WORD": "Invalid word.",
+    "ALREADY_IN_LIST": "This word is already in the list.",
+    "ADDED": "✅ Word added: `{{word}}`",
+    "NOT_IN_LIST": "This word is not in the list.",
+    "REMOVED": "✅ Word removed: `{{word}}`",
+    "EMPTY_LIST": "The list is empty.",
+    "LIST": "Banned words ({{count}}):\n{{words}}",
+    "CLEARED": "✅ List cleared.",
+    "UNKNOWN_SUBCOMMAND": "Unknown subcommand."
+  },
+  "AUTOSANCTION": {
+    "REASON": "Reached {{warnCount}} warn(s) - Automatic sanction",
+    "LOG": {
+      "TIMEOUT": "⏲️ <@{{memberId}}> has been automatically timed out for reaching {{warnCount}} warns.",
+      "KICK": "🔨 <@{{memberId}}> has been automatically kicked for reaching {{warnCount}} warns.",
+      "BAN": "🔨 <@{{memberId}}> has been automatically banned for reaching {{warnCount}} warns."
+    }
+  },
+  "WELCOME": {
+    "TITLE": "Welcome {{username}}!",
+    "DESCRIPTION": "We're happy to have you on {{guild}} 🎉"
+  },
+  "LEAVE": {
+    "TITLE": "Goodbye {{username}}!",
+    "DESCRIPTION": "Thanks for being with us on {{guild}} 🎉"
+  },
+  "HELP": {
+    "TITLE": "📖 Command list",
+    "DESCRIPTION": "Here are all available commands, sorted by category:",
+    "EMPTY_CATEGORY": "No commands available.",
+    "SUPPORT": {
+      "TITLE": "🔗 Support",
+      "VALUE": "[Join the support server](https://discord.gg/your-invite-link)"
+    },
+    "INVITE": {
+      "TITLE": "➕ Invite",
+      "VALUE": "[Add the bot to your server](https://discord.com/oauth2/authorize?client_id={{clientId}}&scope=bot%20applications.commands&permissions=8)"
+    },
+    "LOCALE_NOTE": "Note: command descriptions shown in Discord's / command bar depend on your Discord client language ({{clientLocale}}). The server language is {{serverLocale}}."
+  },
+  "AUTOMOD": {
+    "DM": {
+      "WARN_TITLE": "⚠️ You have been warned in {{guild}}",
+      "TOTAL_WARNS": "Total warns"
+    },
+    "LOG": {
+      "USER": "User",
+      "MESSAGE": "Message",
+      "CHANNEL": "Channel",
+      "TOTAL_WARNS": "Total warns"
+    },
+    "TIMEOUT": {
+      "MESSAGE": "<@{{memberId}}> has been timed out for {{seconds}} seconds.",
+      "DESCRIPTION": "The user has been timed out for breaking the server rules."
+    },
+    "ANTILINK": {
+      "REASON": "Link posting",
+      "LOG": {
+        "TITLE": "🛑 Link detected"
+      }
+    },
+    "ANTISPAM": {
+      "REASON": "Message spam",
+      "LOG": {
+        "TITLE": "🛑 Spam detected"
+      }
+    },
+    "ANTIBADWORDS": {
+      "REASON": "Use of banned words",
+      "WARNING": "<@{{userId}}>, your message contained a banned word and was deleted.",
+      "TIMEOUT": "<@{{userId}}> has been timed out for {{seconds}} seconds for using a banned word.",
+      "LOG": {
+        "TITLE": "🛑 Banned word detected"
+      }
+    },
+    "ANTIRAID": {
+      "DM": "The server is currently in anti-raid mode. Thanks for your understanding.",
+      "KICK_REASON": "Anti-raid system enabled",
+      "LOG": {
+        "TITLE": "Anti-Raid Alert",
+        "DESCRIPTION": "A new member joined: {{tag}}"
+      }
+    }
+  },
+  "TICKET": {
+    "NOT_CONFIGURED": "The ticket system is not configured on this server.",
+    "ALREADY_CONFIGURED": "The ticket system is already configured. Use `/ticket delete` before creating a new one.",
+    "NO_CONFIG": "No configuration found for this server.",
+    "DELETED": "Ticket system configuration deleted.",
+
+    "CONFIGURED": "Ticket system configured and panel sent in {{channel}}.",
+
+    "PANEL": {
+      "TITLE": "🎫 Ticket System",
+      "DEFAULT_DESCRIPTION": "Select the ticket type from the menu below.",
+      "DEFAULT_TYPES": "Support,Sales,Report,Other",
+      "PLACEHOLDER": "Select a ticket type",
+      "FOOTER": "Requested by {{user}}"
+    },
+
+    "ALREADY_OPEN": "You already have an open ticket: {{channel}}",
+    "AUDIT_REASON": "Ticket created by {{tag}} ({{userId}})",
+    "CREATED": "Your ticket has been created: {{channel}}",
+    "CREATE_FAILED": "An error occurred while creating your ticket. Please try again later.",
+    "NOT_A_TICKET": "❌ This channel is not a ticket.",
+    "CLOSE_NO_PERMISSION": "❌ You don't have permission to close this ticket.",
+
+    "CHANNEL": {
+      "TITLE": "New ticket - {{type}}",
+      "DESCRIPTION": "Hi {{user}}, a member of our support team will reply soon.\n\nPlease describe your issue in detail so we can help you.",
+      "FOOTER": "Support Team"
+    },
+
+    "CLOSE": {
+      "LOG": {
+        "TITLE": "📕 Ticket Closed",
+        "DESCRIPTION": "Ticket **{{channel}}** was closed by **{{user}}**."
+      },
+      "SUCCESS": "✅ Ticket closed."
+    },
+
+    "TRANSCRIPT_FILENAME": "{{channel}}.html"
+  },
+  "ECONOMY": {
+    "DAILY": {
+      "ALREADY_CLAIMED": "You've already claimed your daily reward. Come back tomorrow!",
+      "CLAIMED": "**{{amount}} $** have been added to your account. Your balance is now **{{balance}} $**."
+    },
+    "MONEY": {
+      "NO_ACCOUNT": "<@{{userId}}> doesn't have any money yet.",
+      "SELF": "You have **{{balance}} $**.",
+      "OTHER": "<@{{userId}}> has **{{balance}} $**."
+    },
+    "PAY": {
+      "SELF": "You can't pay yourself.",
+      "INVALID_AMOUNT": "The amount must be greater than zero.",
+      "INSUFFICIENT": "You don't have enough funds to complete this payment.",
+      "EMBED": {
+        "TITLE": "Payment completed",
+        "DESCRIPTION": "Your payment was completed successfully.",
+        "FIELDS": {
+          "PAYER": "Payer",
+          "PAYEE": "Recipient",
+          "AMOUNT": "Amount"
+        }
+      }
+    },
+    "LEADERBOARD": {
+      "INVALID_SUBCOMMAND": "Invalid subcommand.",
+      "NO_DATA": "No data available for this leaderboard.",
+      "UNKNOWN_USER": "Unknown user",
+      "TITLES": {
+        "WARNS": "Top members by warns",
+        "MONEY": "Top members by money",
+        "LEVEL": "Top members by level"
+      },
+      "UNITS": {
+        "WARNS": "warns",
+        "MONEY": "💰",
+        "LEVEL": "level"
+      }
+    },
+    "LEVEL": {
+      "NO_LEVEL_OTHER": "{{tag}} doesn't have a level yet.",
+      "NO_LEVEL_SELF": "You don't have a level yet. Send a few messages and try again!"
+    },
+    "GIVEAWAY": {
+      "UNKNOWN_SUBCOMMAND": "Invalid subcommand.",
+      "NOT_FOUND": "Giveaway not found.",
+      "ALREADY_ENDED": "This giveaway has already ended.",
+      "NOT_ENDED": "This giveaway hasn't ended yet.",
+      "CHANNEL_MISSING": "The giveaway channel no longer exists.",
+      "MESSAGE_MISSING": "The giveaway message no longer exists.",
+
+      "START": {
+        "INVALID_CHANNEL": "Please select a text channel.",
+        "SUCCESS": "Giveaway started in {{channel}}.",
+        "EMBED": {
+          "TITLE": "New Giveaway!",
+          "DESCRIPTION": "Prize: **{{prize}}**\nDuration: **{{duration}} minutes**\nWinners: **{{winnersCount}}**\nReact with 🎉 to participate!",
+          "FOOTER": "Giveaway ID: {{id}}"
+        }
+      },
+
+      "END": {
+        "NO_PARTICIPANTS": "The giveaway is over, but there were no participants.",
+        "SUCCESS": "Giveaway ended. Winners: {{winners}}",
+        "EMBED": {
+          "TITLE": "Giveaway Ended",
+          "NO_PARTICIPANTS": "The giveaway for **{{prize}}** has ended.\nNo one participated.",
+          "WINNERS": "The giveaway for **{{prize}}** has ended!\nCongratulations to: {{winners}}"
+        }
+      },
+
+      "REROLL": {
+        "NO_PARTICIPANTS": "No participants to reroll.",
+        "SUCCESS": "Giveaway rerolled. New winners: {{winners}}",
+        "EMBED": {
+          "TITLE": "Giveaway Rerolled",
+          "DESCRIPTION": "The giveaway for **{{prize}}** was rerolled!\nNew winners: {{winners}}"
+        }
+      }
+    }
+  },
+  "SHOP": {
+    "STOCK": {
+      "UNLIMITED": "Unlimited"
+    },
+    "INFO": {
+      "TITLE": "🛒 Shop",
+      "DESCRIPTION": "Here are the items available in the shop.",
+      "EMPTY": {
+        "TITLE": "No items available",
+        "VALUE": "The shop is empty."
+      },
+      "ITEM": {
+        "TITLE": "{{name}} - {{price}} credits ({{type}})",
+        "VALUE": "{{description}}\nStock: {{stockLabel}}"
+      }
+    },
+    "BUY": {
+      "SUCCESS": "✅ You bought **{{name}}** for {{price}} credits!"
+    },
+    "ADD": {
+      "SUCCESS": "✅ Item **{{name}}** added for {{price}} credits. Stock: {{stockLabel}}"
+    },
+    "REMOVE": {
+      "SUCCESS": "✅ Item **{{name}}** removed."
+    },
+    "ERRORS": {
+      "NOT_FOUND": "❌ Item not found.",
+      "OUT_OF_STOCK": "❌ Item out of stock.",
+      "INSUFFICIENT_FUNDS": "❌ Insufficient funds.",
+      "NO_PERMISSION_ADD": "❌ You don't have permission to add items.",
+      "NO_PERMISSION_REMOVE": "❌ You don't have permission to remove items."
+    }
+  },
+  "AUTOMOD_CONFIG": {
+    "ANTILINK": {
+      "TITLE": "⚙️ Antilink configuration",
+      "ENABLED": "Antilink has been **enabled ✅**.",
+      "DISABLED": "Antilink has been **disabled ❌**."
+    },
+    "ANTISPAM": {
+      "TITLE": "Antispam configuration",
+      "ENABLED": "Antispam has been **enabled**.",
+      "DISABLED": "Antispam has been **disabled**."
+    },
+    "LOGCHANNEL": {
+      "INVALID_CHANNEL": "Please select a text channel.",
+      "TITLE": "Log channel configuration",
+      "DESCRIPTION": "Log channel has been set to {{channel}}."
+    },
+    "AUTOSANCTION": {
+      "ENABLED_TITLE": "✅ Automatic Sanction Enabled",
+      "DISABLED_TITLE": "❌ Automatic Sanction Disabled",
+      "ENABLED_DESC": "Automatic sanction has been enabled successfully.",
+      "DISABLED_DESC": "Automatic sanction has been disabled successfully."
+    },
+    "ANTIBADWORDS": {
+      "ENABLED_TITLE": "✅ Anti Bad Words Enabled",
+      "DISABLED_TITLE": "❌ Anti Bad Words Disabled",
+      "ENABLED_DESC": "Anti bad words has been enabled successfully.",
+      "DISABLED_DESC": "Anti bad words has been disabled successfully."
+    },
+    "ANTIRAID": {
+      "ALREADY_ENABLED": "Anti-raid system is already enabled.",
+      "ALREADY_DISABLED": "Anti-raid system is already disabled.",
+      "INVALID_ACTION": "Invalid action. Please choose 'enable' or 'disable'.",
+      "ENABLED_TITLE": "Anti-Raid Enabled",
+      "ENABLED_DESC": "The anti-raid system has been successfully enabled.",
+      "DISABLED_TITLE": "Anti-Raid Disabled",
+      "DISABLED_DESC": "The anti-raid system has been successfully disabled."
+    }
+  },
+  "UTILES": {
+    "DELMESS": {
+      "TITLE": "Delete messages",
+      "PROGRESS": "Deleting {{amount}} message(s)...",
+      "SUCCESS": "✅ | {{count}} message(s) deleted."
+    },
+    "EMBED": {
+      "INVALID_IMAGE_URL": "❌ Invalid image URL.",
+      "INVALID_THUMBNAIL_URL": "❌ Invalid thumbnail URL."
+    },
+    "ROLEREACT": {
+      "NO_BOT_PERMISSION": "❌ I don't have permission to manage roles.",
+      "ROLE_TOO_HIGH": "❌ I can't assign this role because it's higher than my highest role.",
+      "MESSAGE_FETCH_FAILED": "❌ I couldn't fetch the message. Please check the ID.",
+      "EMOJI_NOT_FOUND": "❌ Custom emoji not found in this server.",
+      "BUTTON_LABEL": "Get role {{role}}",
+      "BUTTON_ALREADY_EXISTS": "❌ A button for this role already exists on this message.",
+      "TOO_MANY_BUTTONS": "❌ You can't add more than 5 buttons per row.",
+      "MESSAGE_EDIT_FAILED": "❌ I couldn't add the button to the message.",
+      "SUCCESS_TITLE": "Setup successful",
+      "SUCCESS_DESC": "✅ The message has been configured to assign the role **{{role}}** with the button."
+    }
+  },
+  "INFOUSER": {
+    "NOT_IN_GUILD": "User not found in this server.",
+    "TITLE": "Info for {{tag}}",
+    "UNKNOWN": "Unknown",
+    "NO_ROLE": "No roles",
+    "NO_LEVEL": "No level",
+    "LEVEL_VALUE": "Level {{level}} ({{xp}} XP)",
+    "FIELDS": {
+      "ID": "🆔 ID",
+      "ACCOUNT_CREATED": "📅 Account created",
+      "JOINED_GUILD": "👤 Joined server",
+      "ROLES": "🏷️ Roles",
+      "WARNS": "⚠️ Warns",
+      "LEVEL": "⭐ Level",
+      "STATUS": "Status",
+      "ACTIVITIES": "Activities"
+    },
+    "ACTIVITY": {
+      "PLAYING": "Playing",
+      "STREAMING": "Streaming",
+      "LISTENING": "Listening",
+      "WATCHING": "Watching",
+      "CUSTOM": "Doing",
+      "COMPETING": "Competing",
+      "DOING": "Doing something"
+    }
+  },
+  "MISC": {
+    "PING": {
+      "CALCULATING": "Calculating ping...",
+      "PONG": "🏓 Pong! Latency: {{latency}}ms. API latency: {{apiLatency}}ms."
+    }
+  },
+  "CONFIG_CMD": {
+    "AUTOROLE": {
+      "TITLE": "Auto role set",
+      "DESCRIPTION": "Auto role has been set to {{role}}."
+    },
+    "WELCOME": {
+      "TITLE": "Welcome channel set",
+      "DESCRIPTION": "Welcome channel has been set to {{channel}}."
+    },
+    "LEAVE": {
+      "TITLE": "Leave channel set",
+      "DESCRIPTION": "Leave channel has been set to {{channel}}."
+    }
+  },
+  "VOICE": {
+    "CREATE": {
+      "ASK_NAME": "{{member}}, what name do you want for your voice channel? (Reply within 30 seconds)",
+      "DEFAULT_NAME": "{{username}} 🔊"
+    },
+    "CONFIG": {
+      "INVALID_CHANNEL": "Please select a valid voice channel.",
+      "TITLE": "Voice channel configured",
+      "DESCRIPTION": "The voice base channel has been set to <#{{channelId}}> ."
+    }
+  },
+  "FUN": {
+    "CHIFUMI": {
+      "TITLE": "Rock Paper Scissors",
+      "RESULT_LABEL": "Result",
+      "ERRORS": {
+        "INSUFFICIENT_FUNDS": "You don't have enough funds for this bet.",
+        "SELF_OPPONENT": "You can't play against yourself!",
+        "OTHER_BOT_OPPONENT": "You can't play against a bot other than me!"
+      },
+      "PVP": {
+        "ASK": "{{opponent}}, it's your turn to choose rock, paper, or scissors! (You have 30 seconds and the bet is {{betAmount}})",
+        "INVALID_CHOICE": "Invalid choice! Please choose rock, paper, or scissors.",
+        "TIMEOUT": "Time is up! No choice received.",
+        "DRAW_REFUND": "Draw! {{user}} and {{opponent}} get their bet of {{betAmount}} credits back each.",
+        "USER_WINS": "{{user}} wins!",
+        "WIN_REWARD": "{{winner}} won {{amount}} credits by beating {{loser}}!",
+        "USER_CHOICE": "{{user}} chose"
+      },
+      "RESULTS": {
+        "DRAW": "Draw!",
+        "YOU_WIN": "You win!",
+        "BOT_WINS": "Bot wins!"
+      },
+      "BOT": {
+        "USER_CHOICE": "Your choice",
+        "BOT_CHOICE": "Bot's choice"
+      }
+    }
+  }
+}

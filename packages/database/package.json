@@ -1,0 +1,14 @@
+{
+  "name": "@sparcky/database",
+  "version": "1.0.0",
+  "description": "Shared database models and schemas for Sparcky Bot and Panel",
+  "main": "src/index.cjs",
+  "module": "src/index.mjs",
+  "exports": {
+    "import": "./src/index.mjs",
+    "require": "./src/index.cjs"
+  },
+  "dependencies": {
+    "mongoose": "^8.7.2"
+  }
+}

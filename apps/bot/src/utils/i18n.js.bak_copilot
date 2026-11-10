@@ -1,0 +1,55 @@
+const path = require("path")
+const i18next = require("i18next")
+const Backend = require("i18next-fs-backend")
+
+// Logger optionnel: si ton projet a un logger utilitaire, il sera utilisé.
+let logger
+try {
+  // eslint-disable-next-line global-require
+  logger = require("./logger")
+} catch {
+  logger = null
+}
+
+let initPromise
+
+/**
+ * Initialise i18next une seule fois.
+ * @returns {Promise<import('i18next').i18n>}
+ */
+function initI18n() {
+  if (initPromise) return initPromise
+
+  initPromise = i18next
+    .use(Backend)
+    .init({
+      fallbackLng: "fr",
+      supportedLngs: ["fr", "en"],
+      load: "languageOnly",
+      ns: ["translation"],
+      defaultNS: "translation",
+      interpolation: {
+        escapeValue: false
+      },
+      backend: {
+        // ex: /src/locales/fr/translation.json
+        loadPath: path.join(__dirname, "../../locales/{{lng}}/translation.json")
+      },
+      // Silence prod, utile en dev
+      missingKeyHandler(lngs, ns, key) {
+        logger?.warn?.(`[i18n] Missing key '${ns}:${key}' for ${lngs}`)
+      }
+    })
+    .catch(err => {
+      logger?.error?.("[i18n] Init failed:", err)
+      throw err
+    })
+
+  return initPromise
+}
+
+module.exports = {
+  initI18n,
+  i18next
+}
+

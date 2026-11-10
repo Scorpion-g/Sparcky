@@ -1,0 +1,65 @@
+services:
+  # Base de données MongoDB
+  mongo:
+    image: mongo:7-jammy
+    container_name: sparcky_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=sparcky
+    networks:
+      - sparcky_net
+
+  # Bot Discord
+  bot:
+    build:
+      context: .
+      dockerfile: apps/bot/Dockerfile
+    container_name: sparcky_bot
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    networks:
+      - sparcky_net
+
+  # API Express du Panel
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: sparcky_api
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    env_file:
+      - .env
+    ports:
+      - "3001:3001"
+    networks:
+      - sparcky_net
+
+  # Panel Web (React 19 servi par Nginx avec proxy inverse vers l'API)
+  panel:
+    build:
+      context: .
+      dockerfile: apps/panel/Dockerfile
+    container_name: sparcky_panel
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+    networks:
+      - sparcky_net
+
+volumes:
+  mongo_data:
+
+networks:
+  sparcky_net:
+    driver: bridge
