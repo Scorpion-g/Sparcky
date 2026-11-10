@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react"
 import { Navigate, useLocation } from "react-router-dom"
 import { clearTokenFromUrl, getJwt, getTokenFromUrl, setJwt } from "../lib/auth"
 
-const API_BASE_URL = "http://localhost:3001"
+const API_BASE_URL = ""
 
 function DiscordIcon(props) {
   return (

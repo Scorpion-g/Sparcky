@@ -1,6 +1,6 @@
 import { clearJwt, getJwt } from "./auth"
 
-const API_BASE_URL = "http://localhost:3001"
+const API_BASE_URL = ""
 
 export async function apiFetch(path, { method = "GET", body, headers } = {}) {
   const token = getJwt()

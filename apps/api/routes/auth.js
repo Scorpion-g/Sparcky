@@ -55,7 +55,8 @@ router.get("/discord/callback", async (req, res) => {
       { expiresIn: "7d" }
     )
 
-    res.redirect(`http://localhost:5173/login?token=${jwtToken}`)
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173"
+    res.redirect(`${frontendUrl}/login?token=${jwtToken}`)
   } catch (err) {
     console.error(err)
     res.status(500).send("OAuth error")
