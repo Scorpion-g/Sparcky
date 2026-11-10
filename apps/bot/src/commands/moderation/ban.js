@@ -75,7 +75,7 @@ module.exports = {
       return;
     }
     try {
-      await member.ban({ raison });
+      await member.ban({ reason: raison });
       await interaction.editReply(
         await interaction.t("MODERATION.BAN.SUCCESS", {
           member: `${member}`,

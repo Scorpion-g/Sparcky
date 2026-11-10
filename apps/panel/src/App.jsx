@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import Login from "./pages/Login"
+import Demo from "./pages/Demo"
 import Dashboard from "./pages/Dashboard"
 import Guild from "./pages/Guild"
 import DevDb from "./pages/DevDb"
@@ -15,6 +16,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/demo" element={<Demo />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
 

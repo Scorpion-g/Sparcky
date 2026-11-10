@@ -31,10 +31,12 @@ module.exports = {
     )
     .addStringOption((option) =>
       option
-        .setName("durée")
-        .setDescription("durée du timeout (30m, 1h, 1 jour).")
+        .setName("duree")
+        .setDescription("Durée du timeout (ex: 30m, 1h, 1d)")
         .setDescriptionLocalizations({
-          "en-US": "Timeout duration (30m, 1h, 1 day)",
+          fr: "Durée du timeout (ex: 30m, 1h, 1d)",
+          "en-US": "Timeout duration (e.g. 30m, 1h, 1d)",
+          "es-ES": "Duración del tiempo de espera (ej. 30m, 1h, 1d)",
         })
         .setRequired(true),
     )
@@ -50,7 +52,7 @@ module.exports = {
     .setDefaultMemberPermissions(BigInt(PermissionFlagsBits.MuteMembers)),
   async execute(interaction) {
     const mentionable = interaction.options.get("membre").value;
-    const durationRaw = interaction.options.get("durée").value;
+    const durationRaw = interaction.options.get("duree")?.value || interaction.options.get("durée")?.value;
     const raison =
       interaction.options.get("raison")?.value ||
       (await interaction.t("COMMON.DEFAULT_REASON"));

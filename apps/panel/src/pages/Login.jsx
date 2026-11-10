@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react"
-import { Navigate, useLocation } from "react-router-dom"
+import { Navigate, useLocation, Link } from "react-router-dom"
 import { clearTokenFromUrl, getJwt, getTokenFromUrl, setJwt } from "../lib/auth"
 
 const API_BASE_URL = ""
@@ -60,6 +60,14 @@ export default function Login() {
                 <DiscordIcon className="h-5 w-5 opacity-90 transition group-hover:opacity-100" />
                 <span>Se connecter avec Discord</span>
               </a>
+
+              <Link
+                to="/demo"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900/90 border border-indigo-500/30 hover:border-indigo-500/80 hover:bg-indigo-950/40 px-4 py-3 text-sm font-semibold text-indigo-300 hover:text-white transition shadow-lg shadow-indigo-950/40"
+              >
+                <span>🎮</span>
+                <span>Tester la Démo Interactive (Sans connexion)</span>
+              </Link>
 
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-white/10" />

@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.2.3";
+const CURRENT_VERSION = "2.3.0";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,31 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.3.0",
+    date: "10 Novembre 2026",
+    type: "MINOR",
+    githubUrl: getGitHubReleaseUrl("2.3.0"),
+    title: "Mise à Jour v2.3.0 : Refonte Ergonomie, Sécurité, Commandes Unifiées & Mode Démo Web",
+    summary: "Refonte majeure de l'ergonomie utilisateur et de la sécurité : unification de l'auto-modération sous /security, centralisation des réglages serveur sous /setup, nouvelle commande /clear filtrable, charte visuelle des embeds unifiée (Sparcky Theme), réorganisation modulaire du code et ajout du mode Démo interactif public sur le dashboard web.",
+    highlights: [
+      {
+        emoji: "🛡️",
+        title: "Centre de Sécurité /security",
+        desc: "Tableau de bord visuel et gestion centralisée des protections (anti-lien, anti-spam, anti-raid, badwords, sanctions, logs)."
+      },
+      {
+        emoji: "⚙️",
+        title: "Configuration Simple /setup & /clear",
+        desc: "Configuration instantanée des salons de bienvenue, départ, auto-rôles, hub vocal et nettoyage de chat filtrable par utilisateur."
+      },
+      {
+        emoji: "🎮",
+        title: "Sandbox Démo sur le Web",
+        desc: "Nouvel espace interactif public sur sparcky.matteoriviere.fr/demo pour tester toutes les fonctionnalités sans compte requis."
+      }
+    ]
+  },
   {
     version: "2.2.3",
     date: "10 Novembre 2026",

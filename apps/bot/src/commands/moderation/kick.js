@@ -75,7 +75,7 @@ module.exports = {
       return;
     }
     try {
-      await member.kick({ raison });
+      await member.kick(raison);
       await interaction.editReply(
         await interaction.t("MODERATION.KICK.SUCCESS", {
           member: `${member}`,
