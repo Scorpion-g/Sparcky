@@ -24,6 +24,8 @@ services:
       - mongo
     env_file:
       - .env
+    environment:
+      - PORT=3000
     networks:
       - sparcky_net
 
@@ -38,6 +40,8 @@ services:
       - mongo
     env_file:
       - .env
+    environment:
+      - PORT=3001
     ports:
       - "3001:3001"
     networks:
