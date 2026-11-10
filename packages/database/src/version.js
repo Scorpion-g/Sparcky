@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.2.0";
+const CURRENT_VERSION = "2.2.1";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,21 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.2.1",
+    date: "10 Novembre 2026",
+    type: "PATCH",
+    githubUrl: getGitHubReleaseUrl("2.2.1"),
+    title: "Correctif v2.2.1 : Streaming Audio Deezer en Vocal",
+    summary: "Correction du flux audio dans les salons vocaux Discord lors des parties de Blind Test : en-têtes User-Agent sécurisés et streaming direct vers le lecteur Opus pour assurer une écoute fluide et sans coupure.",
+    highlights: [
+      {
+        emoji: "🔊",
+        title: "Résolution du son vocal",
+        desc: "Contournement de la restriction HTTP 403 sur le CDN audio et transmission directe des flux Opus."
+      }
+    ]
+  },
   {
     version: "2.2.0",
     date: "10 Novembre 2026",
