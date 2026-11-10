@@ -16,6 +16,7 @@ function buildReleaseEmbed(version = CURRENT_VERSION, client = null) {
     .setDescription(
       `${release.summary}\n\n` +
       `**🌐 Panel Web :** [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n` +
+      `**🎮 Sandbox Démo :** [sparcky.matteoriviere.fr/demo](https://sparcky.matteoriviere.fr/demo)\n` +
       `**📦 GitHub Release :** [Scorpion-g/Sparcky (v${release.version})](${githubLink})\n\n` +
       `──────────────────────────────`
     )
