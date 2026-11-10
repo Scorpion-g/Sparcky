@@ -657,7 +657,25 @@ router.get("/version", async (_req, res) => {
 })
 
 router.post("/admin/broadcast-update", authenticate, async (req, res) => {
-  const { version = CURRENT_VERSION, force = false } = req.body || {}
+  const BOT_OWNER_IDS = ["857574003162349588", "313768826477150218"]
+  if (process.env.OWNER_ID) BOT_OWNER_IDS.push(process.env.OWNER_ID)
+
+  if (!BOT_OWNER_IDS.includes(req.user?.id)) {
+    return res.status(403).json({ error: "Accès refusé : réservé aux propriétaires du bot." })
+  }
+
+  const {
+    version = CURRENT_VERSION,
+    force = false,
+    title: customTitle,
+    summary: customSummary,
+    highlights: customHighlights,
+    demoUrl = "https://sparcky.matteoriviere.fr/demo",
+    panelUrl = "https://sparcky.matteoriviere.fr",
+    githubUrl: customGithubUrl,
+    testGuildId = null,
+  } = req.body || {}
+
   const token = getBotToken()
   if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant" })
 
@@ -668,17 +686,29 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
     const botGuildsRes = await axios.get("https://discord.com/api/users/@me/guilds", {
       headers: { Authorization: `Bot ${token}` }
     })
-    const guilds = botGuildsRes.data || []
+    let guilds = botGuildsRes.data || []
+
+    if (testGuildId) {
+      guilds = guilds.filter(g => g.id === testGuildId)
+      if (guilds.length === 0) {
+        return res.status(404).json({ error: "Le bot n'a pas été trouvé sur le serveur de test sélectionné." })
+      }
+    }
 
     const release = getChangelog(version)
-    const githubLink = release.githubUrl || getGitHubReleaseUrl(release.version)
+    const finalTitle = customTitle || release.title
+    const finalSummary = customSummary || release.summary
+    const finalGithub = customGithubUrl || release.githubUrl || getGitHubReleaseUrl(release.version)
+    const finalHighlights = Array.isArray(customHighlights) && customHighlights.length > 0
+      ? customHighlights
+      : release.highlights
 
     const embed = {
-      title: `📢 ${release.title}`,
-      description: `${release.summary}\n\n**🌐 Panel Web :** [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n**📦 GitHub Release :** [Scorpion-g/Sparcky (v${release.version})](${githubLink})\n\n──────────────────────────────`,
+      title: `📢 ${finalTitle}`,
+      description: `${finalSummary}\n\n**🌐 Panel Web :** [${panelUrl.replace(/^https?:\/\//, '')}](${panelUrl})\n**🎮 Sandbox Démo :** [${demoUrl.replace(/^https?:\/\//, '')}](${demoUrl})\n**📦 GitHub Release :** [Scorpion-g/Sparcky (v${release.version})](${finalGithub})\n\n──────────────────────────────`,
       color: 0x6366f1,
-      fields: release.highlights.map(h => ({
-        name: `${h.emoji} ${h.title}`,
+      fields: finalHighlights.map(h => ({
+        name: `${h.emoji || "✨"} ${h.title}`,
         value: h.desc,
         inline: false
       })),
@@ -690,6 +720,7 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
 
     const results = {
       version,
+      isTest: Boolean(testGuildId),
       totalGuilds: guilds.length,
       sentCount: 0,
       skippedCount: 0,
@@ -701,7 +732,7 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
       try {
         const guildConfig = await db.collection("guildconfigurations").findOne({ guildId: g.id })
 
-        if (!force && guildConfig?.lastAnnouncedVersion === version) {
+        if (!testGuildId && !force && guildConfig?.lastAnnouncedVersion === version) {
           results.skippedCount++
           results.details.push({ guildId: g.id, guildName: g.name, status: "skipped", reason: `Déjà diffusé (v${version})` })
           continue
@@ -745,11 +776,13 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
           { headers: { Authorization: `Bot ${token}` } }
         )
 
-        await db.collection("guildconfigurations").updateOne(
-          { guildId: g.id },
-          { $set: { lastAnnouncedVersion: version, updatedAt: new Date() } },
-          { upsert: true }
-        )
+        if (!testGuildId) {
+          await db.collection("guildconfigurations").updateOne(
+            { guildId: g.id },
+            { $set: { lastAnnouncedVersion: version, updatedAt: new Date() } },
+            { upsert: true }
+          )
+        }
 
         results.sentCount++
         results.details.push({

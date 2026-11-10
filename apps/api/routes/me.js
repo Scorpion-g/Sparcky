@@ -116,8 +116,12 @@ router.get("/me", authenticate, async (req, res) => {
       })
     ])
 
+    const BOT_OWNER_IDS = ["857574003162349588", "313768826477150218"]
+    if (process.env.OWNER_ID) BOT_OWNER_IDS.push(process.env.OWNER_ID)
+
     const enrichedUser = {
       ...user,
+      isBotOwner: BOT_OWNER_IDS.includes(user.id),
       avatarUrl: discordUserAvatarUrl({ id: user.id, avatar: user.avatar }, { size: 128 })
     }
 

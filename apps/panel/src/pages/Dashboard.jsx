@@ -15,11 +15,58 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("admin") // "admin" | "with_bot" | "to_invite" | "all"
   const [broadcastLoading, setBroadcastLoading] = useState(false)
   const [broadcastResult, setBroadcastResult] = useState(null)
+  const [showBroadcastEditor, setShowBroadcastEditor] = useState(false)
+  const [testGuildId, setTestGuildId] = useState("")
+  const [testLoading, setTestLoading] = useState(false)
 
-  async function handleBroadcast() {
-    if (!window.confirm("Diffuser l'annonce officielle v2.0.0 sur TOUS les serveurs où le bot est connecté ?")) return
-    setBroadcastLoading(true)
+  // Modèle d'annonce modifiable par l'Owner
+  const [announcement, setAnnouncement] = useState({
+    version: "2.3.2",
+    title: "Mise à Jour v2.3.2 : Refonte Sécurité, Menu Déroulant /help, Commandes Unifiées & Démo Multilingue",
+    summary: "Refonte majeure de l'ergonomie et de la sécurité du bot : nouveau centre d'aide interactif avec menu déroulant par catégories, unification des commandes de configuration (/setup) et de sécurité (/security), purge de messages filtrable (/clear), tolérance intelligente et durées personnalisées sur le Blind Test, et mode Démo interactif multilingue (FR, EN, ES) sur le web.",
+    demoUrl: "https://sparcky.matteoriviere.fr/demo",
+    githubUrl: "https://github.com/Scorpion-g/Sparcky/releases/tag/v2.3.2",
+    highlights: [
+      {
+        emoji: "📖",
+        title: "Centre d'Aide Interactif /help",
+        desc: "Menu déroulant par catégories (Sécurité, Modération, Économie, Setup, Fun, Tickets, Général) avec affichage automatique des sous-commandes."
+      },
+      {
+        emoji: "🛡️",
+        title: "Hubs Unifiés /security & /setup",
+        desc: "Gestion centralisée de l'auto-modération et de la configuration du serveur (bienvenue, départs, autorole, vocaux temporaires, langue)."
+      },
+      {
+        emoji: "🎵",
+        title: "Blind Test Deezer Perfectionné",
+        desc: "Validation souple des réponses (tolérance Levenshtein, expressions orales) et choix de la durée de chaque manche (15s à 60s)."
+      },
+      {
+        emoji: "🌐",
+        title: "Sandbox Démo & Panel Multilingue",
+        desc: "Espace interactif public sur sparcky.matteoriviere.fr/demo et traduction intégrale du panel en Français, Anglais et Espagnol."
+      }
+    ]
+  })
+
+  async function handleSendAnnouncement(isTest = false) {
+    if (isTest && !testGuildId) {
+      alert("Veuillez d'abord sélectionner un serveur de test dans la liste.")
+      return
+    }
+
+    if (!isTest) {
+      const confirmed = window.confirm(
+        `Diffuser cette annonce officielle v${announcement.version} sur TOUS les serveurs où le bot est connecté ?`
+      )
+      if (!confirmed) return
+    }
+
+    if (isTest) setTestLoading(true)
+    else setBroadcastLoading(true)
     setBroadcastResult(null)
+
     try {
       const res = await fetch("/api/admin/broadcast-update", {
         method: "POST",
@@ -27,14 +74,24 @@ export default function Dashboard() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ version: "2.0.0", force: true })
+        body: JSON.stringify({
+          version: announcement.version,
+          force: true,
+          title: announcement.title,
+          summary: announcement.summary,
+          highlights: announcement.highlights,
+          demoUrl: announcement.demoUrl,
+          githubUrl: announcement.githubUrl,
+          testGuildId: isTest ? testGuildId : null,
+        })
       })
       const payload = await res.json()
       if (!res.ok) throw new Error(payload?.error || "Échec de la diffusion")
       setBroadcastResult(payload)
     } catch (err) {
-      alert("Erreur de diffusion : " + err.message)
+      alert("Erreur lors de l'envoi : " + err.message)
     } finally {
+      setTestLoading(false)
       setBroadcastLoading(false)
     }
   }
@@ -210,75 +267,247 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bannière de Versioning & Diffusion Globale */}
-        <div className="mb-8 rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-purple-950/30 p-5 backdrop-blur-xl sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600/20 text-indigo-400 ring-1 ring-indigo-500/30">
-                📢
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">Mise à Jour Majeure v2.0.0 Prête</h3>
-                  <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                    Système Automatisé
-                  </span>
+        {/* Centre de Diffusion & Prévisualisation d'Annonce (Owner Only) */}
+        {data?.user?.isBotOwner && (
+          <div className="mb-8 rounded-3xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/50 via-slate-900/80 to-purple-950/40 p-5 sm:p-6 backdrop-blur-xl shadow-2xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600/30 text-indigo-300 ring-1 ring-indigo-500/50">
+                  📢
                 </div>
-                <p className="mt-1 text-xs text-slate-300">
-                  Diffusez l'annonce officielle de la mise à jour (Panel Web, Économie, Niveaux, Tickets) sur <strong>tous les {allGuilds.filter(g => g.botInGuild).length} serveurs connectés</strong> en un clic.
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">Gestionnaire d'Annonce & Diffusion Globale</h3>
+                    <span className="rounded-md bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-300 uppercase tracking-wider">
+                      Owner Only
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-300 max-w-2xl">
+                    Prévisualisez et modifiez le message de mise à jour <strong>v{announcement.version}</strong> en direct. Vous pouvez tester l'envoi sur un serveur spécifique avant de notifier l'ensemble de votre communauté.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowBroadcastEditor(!showBroadcastEditor)}
+                  className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2.5 text-xs font-semibold text-slate-200 transition"
+                >
+                  <span>✏️</span>
+                  <span>{showBroadcastEditor ? "Masquer l'éditeur" : "Modifier l'annonce"}</span>
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href="https://github.com/Scorpion-g/Sparcky/releases/tag/v2.0.0"
-                target="_blank"
-                rel="noreferrer"
-                className="shrink-0 flex items-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
-              >
-                <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                </svg>
-                GitHub Release v2.0.0 ↗
-              </a>
+            {/* Formulaire d'édition modifiable */}
+            {showBroadcastEditor && (
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-5 space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                  Éditeur du Contenu de l'Annonce (v{announcement.version})
+                </h4>
 
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400">Titre de la Release :</label>
+                    <input
+                      type="text"
+                      value={announcement.title}
+                      onChange={(e) => setAnnouncement({ ...announcement, title: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400">Message / Résumé Principal :</label>
+                    <textarea
+                      rows={3}
+                      value={announcement.summary}
+                      onChange={(e) => setAnnouncement({ ...announcement, summary: e.target.value })}
+                      className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400">Lien Démo Interactive :</label>
+                      <input
+                        type="text"
+                        value={announcement.demoUrl}
+                        onChange={(e) => setAnnouncement({ ...announcement, demoUrl: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-400">Lien GitHub Release :</label>
+                      <input
+                        type="text"
+                        value={announcement.githubUrl}
+                        onChange={(e) => setAnnouncement({ ...announcement, githubUrl: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Highlights */}
+                  <div className="space-y-3 pt-2">
+                    <label className="text-xs font-semibold text-slate-400">Points Forts (Highlights) :</label>
+                    {announcement.highlights.map((hl, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row gap-2 p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                        <input
+                          type="text"
+                          value={hl.emoji}
+                          onChange={(e) => {
+                            const updated = [...announcement.highlights]
+                            updated[idx].emoji = e.target.value
+                            setAnnouncement({ ...announcement, highlights: updated })
+                          }}
+                          className="w-12 text-center rounded-lg bg-slate-800 border border-white/10 py-1 text-sm text-white"
+                          title="Emoji"
+                        />
+                        <input
+                          type="text"
+                          value={hl.title}
+                          onChange={(e) => {
+                            const updated = [...announcement.highlights]
+                            updated[idx].title = e.target.value
+                            setAnnouncement({ ...announcement, highlights: updated })
+                          }}
+                          placeholder="Titre de la fonctionnalité"
+                          className="sm:w-56 rounded-lg bg-slate-800 border border-white/10 px-2.5 py-1 text-xs text-white"
+                        />
+                        <input
+                          type="text"
+                          value={hl.desc}
+                          onChange={(e) => {
+                            const updated = [...announcement.highlights]
+                            updated[idx].desc = e.target.value
+                            setAnnouncement({ ...announcement, highlights: updated })
+                          }}
+                          placeholder="Description du point fort"
+                          className="flex-1 rounded-lg bg-slate-800 border border-white/10 px-2.5 py-1 text-xs text-white"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Prévisualisation Réaliste Discord Embed */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span className="font-semibold uppercase tracking-wider text-indigo-300">
+                  👁️ Prévisualisation de l'Embed Discord
+                </span>
+                <span>Visible uniquement par vous sur ce dashboard</span>
+              </div>
+
+              <div className="rounded-2xl bg-[#2b2d31] p-4 text-[#dbdee1] font-sans border-l-4 border-indigo-500 shadow-xl space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <h5 className="text-base font-bold text-white hover:underline cursor-pointer">
+                      📢 {announcement.title}
+                    </h5>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-[#dbdee1]">
+                      {announcement.summary}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 shrink-0 rounded-full bg-indigo-600 flex items-center justify-center text-xl font-black text-white shadow-md">
+                    ⚡
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-xs border-y border-white/10 py-2.5 font-medium">
+                  <div>🌐 <strong>Panel Web :</strong> <span className="text-[#00a8fc] underline">sparcky.matteoriviere.fr</span></div>
+                  <div>🎮 <strong>Sandbox Démo :</strong> <span className="text-[#00a8fc] underline">{announcement.demoUrl}</span></div>
+                  <div>📦 <strong>GitHub Release :</strong> <span className="text-[#00a8fc] underline">{announcement.githubUrl}</span></div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                  {announcement.highlights.map((h, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="font-bold text-xs text-white">{h.emoji} {h.title}</div>
+                      <div className="text-xs text-[#b5bac1] leading-relaxed">{h.desc}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 text-[11px] text-[#949ba4] border-t border-white/5 flex items-center gap-2">
+                  <span>🤖 God_Sparky v{announcement.version} • Système de Versioning Automatique • Aujourd'hui à {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions : Test unitaire et Diffusion générale */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-white/10">
+              {/* Test sur un serveur */}
+              <div className="flex items-center gap-2">
+                <select
+                  value={testGuildId}
+                  onChange={(e) => setTestGuildId(e.target.value)}
+                  className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                >
+                  <option value="">-- Choisir un serveur de test --</option>
+                  {allGuilds.filter(g => g.botInGuild).map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendAnnouncement(true)}
+                  disabled={testLoading || !testGuildId}
+                  className="rounded-xl border border-indigo-500/40 bg-indigo-950/40 hover:bg-indigo-900/50 px-4 py-2 text-xs font-semibold text-indigo-300 disabled:opacity-40 transition whitespace-nowrap"
+                >
+                  {testLoading ? "Envoi du test..." : "🧪 Tester sur ce serveur"}
+                </button>
+              </div>
+
+              {/* Diffusion générale */}
               <button
-                onClick={handleBroadcast}
+                type="button"
+                onClick={() => handleSendAnnouncement(false)}
                 disabled={broadcastLoading}
-                className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-50 transition"
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 px-6 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 disabled:opacity-50 transition whitespace-nowrap"
               >
-                {broadcastLoading ? "Diffusion en cours..." : "Diffuser la MAJ sur tous les serveurs 🚀"}
+                {broadcastLoading ? "Diffusion globale..." : `Diffuser à TOUS les serveurs (${allGuilds.filter(g => g.botInGuild).length}) 🚀`}
               </button>
             </div>
-          </div>
 
-          {/* Résultat de la diffusion */}
-          {broadcastResult && (
-            <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs">
-              <div className="flex items-center justify-between text-emerald-300 font-bold mb-2">
-                <span>✅ Diffusion terminée : {broadcastResult.sentCount}/{broadcastResult.totalGuilds} serveurs notifiés avec succès</span>
-                <button onClick={() => setBroadcastResult(null)} className="text-slate-400 hover:text-white">✕</button>
-              </div>
-              <div className="flex flex-wrap gap-2 text-[11px]">
-                {broadcastResult.details?.map(d => (
-                  <span
-                    key={d.guildId}
-                    className={`rounded-lg px-2.5 py-1 font-medium ${
-                      d.status === "sent"
-                        ? "bg-emerald-500/20 text-emerald-200"
-                        : d.status === "skipped"
-                        ? "bg-amber-500/20 text-amber-200"
-                        : "bg-rose-500/20 text-rose-200"
-                    }`}
-                  >
-                    {d.status === "sent" ? `✓ ${d.guildName} (#${d.channelName})` : `${d.guildName} (${d.reason})`}
+            {/* Rapport de diffusion */}
+            {broadcastResult && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs space-y-2">
+                <div className="flex items-center justify-between text-emerald-300 font-bold">
+                  <span>
+                    {broadcastResult.isTest
+                      ? "✅ Test réussi : message envoyé sur votre serveur !"
+                      : `✅ Diffusion terminée : ${broadcastResult.sentCount}/${broadcastResult.totalGuilds} serveurs notifiés`}
                   </span>
-                ))}
+                  <button onClick={() => setBroadcastResult(null)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {broadcastResult.details?.map(d => (
+                    <span
+                      key={d.guildId}
+                      className={`rounded-lg px-2.5 py-1 font-medium ${
+                        d.status === "sent"
+                          ? "bg-emerald-500/20 text-emerald-200"
+                          : d.status === "skipped"
+                          ? "bg-amber-500/20 text-amber-200"
+                          : "bg-rose-500/20 text-rose-200"
+                      }`}
+                    >
+                      {d.status === "sent" ? `✓ ${d.guildName} (#${d.channelName})` : `${d.guildName} (${d.reason})`}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Barre de filtres et recherche */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
