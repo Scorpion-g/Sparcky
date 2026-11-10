@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react"
 import { Navigate, useLocation, Link } from "react-router-dom"
 import { clearTokenFromUrl, getJwt, getTokenFromUrl, setJwt } from "../lib/auth"
+import { useLanguage, LanguageSelector } from "../lib/i18n"
 
 const API_BASE_URL = ""
 
@@ -13,6 +14,7 @@ function DiscordIcon(props) {
 }
 
 export default function Login() {
+  const { t } = useLanguage()
   const location = useLocation()
 
   const existingJwt = useMemo(() => getJwt(), [])
@@ -34,8 +36,16 @@ export default function Login() {
   const discordAuthUrl = `${API_BASE_URL}/auth/discord`
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-12">
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col justify-between">
+      {/* Top Bar avec Sélecteur de Langue */}
+      <header className="w-full max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <Link to="/" className="text-xl font-black bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200 bg-clip-text text-transparent">
+          God_Sparky
+        </Link>
+        <LanguageSelector />
+      </header>
+
+      <div className="mx-auto flex flex-1 items-center justify-center px-4 py-8 w-full max-w-6xl">
         <div className="relative w-full max-w-md">
           <div className="absolute -inset-0.5 rounded-3xl bg-gradient-to-r from-indigo-500/40 via-sky-500/30 to-fuchsia-500/30 blur" />
 
@@ -45,9 +55,9 @@ export default function Login() {
                 <DiscordIcon className="h-7 w-7 text-indigo-200" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Connexion</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t("login.title")}</h1>
                 <p className="mt-1 text-sm text-slate-300">
-                  Connecte-toi avec Discord pour accéder au panel.
+                  {t("login.subtitle")}
                 </p>
               </div>
             </div>
@@ -58,7 +68,7 @@ export default function Login() {
                 className="group flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-300/60 focus:ring-offset-2 focus:ring-offset-slate-950"
               >
                 <DiscordIcon className="h-5 w-5 opacity-90 transition group-hover:opacity-100" />
-                <span>Se connecter avec Discord</span>
+                <span>{t("login.btnDiscord")}</span>
               </a>
 
               <Link
@@ -66,36 +76,43 @@ export default function Login() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900/90 border border-indigo-500/30 hover:border-indigo-500/80 hover:bg-indigo-950/40 px-4 py-3 text-sm font-semibold text-indigo-300 hover:text-white transition shadow-lg shadow-indigo-950/40"
               >
                 <span>🎮</span>
-                <span>Tester la Démo Interactive (Sans connexion)</span>
+                <span>{t("login.btnDemo")}</span>
               </Link>
 
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-white/10" />
-                <span className="text-xs text-slate-400">Sécurisé via OAuth</span>
+                <span className="text-xs text-slate-400">{t("login.oauthSecure")}</span>
                 <div className="h-px flex-1 bg-white/10" />
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-                <p className="font-medium text-slate-200">Astuce</p>
+                <p className="font-medium text-slate-200">{t("login.tipTitle")}</p>
                 <p className="mt-1">
-                  Si tu restes bloqué, vérifie que l’API tourne sur <span className="font-mono">{API_BASE_URL}</span>.
+                  {t("login.tipText")} <span className="font-mono">{API_BASE_URL || window.location.origin}</span>.
                 </p>
               </div>
 
               {isExchanging && (
                 <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  <span>Connexion en cours…</span>
+                  <span>{t("login.connecting")}</span>
                 </div>
               )}
             </div>
 
             <p className="mt-8 text-center text-xs text-slate-400">
-              En te connectant, tu acceptes la gestion d’un token en localStorage pour cette session.
+              {t("login.termsNotice")}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="w-full border-t border-white/5 py-4 text-center text-xs text-slate-500 space-x-4">
+        <Link to="/terms" className="hover:underline">{t("demo.footerTerms", "Conditions d'Utilisation")}</Link>
+        <Link to="/privacy" className="hover:underline">{t("demo.footerPrivacy", "Politique de Confidentialité")}</Link>
+        <Link to="/demo" className="hover:underline text-indigo-400">Sandbox Démo</Link>
+      </footer>
     </div>
   )
 }

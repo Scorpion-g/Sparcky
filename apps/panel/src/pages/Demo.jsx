@@ -6,7 +6,7 @@ const BOT_INVITE_URL =
   "https://discord.com/oauth2/authorize?client_id=1285215781363617872&permissions=8&scope=bot%20applications.commands"
 
 export default function Demo() {
-  const { t, lang, setLang } = useLanguage()
+  const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState("security")
   const [toastMessage, setToastMessage] = useState(null)
 
@@ -52,7 +52,12 @@ export default function Demo() {
   const toggleConfig = (key) => {
     setConfig((prev) => {
       const updated = { ...prev, [key]: !prev[key] }
-      showToast(`Module ${key} ${updated[key] ? "activé" : "désactivé"} (Simulation)`)
+      showToast(
+        t("demo.toastModule", `Module ${key} ${updated[key] ? "activé" : "désactivé"} (Simulation)`, {
+          name: key,
+          state: updated[key] ? t("demo.toastEnabled", "activé") : t("demo.toastDisabled", "désactivé"),
+        })
+      )
       return updated
     })
   }
@@ -64,8 +69,8 @@ export default function Demo() {
         const joined = !g.joined
         showToast(
           joined
-            ? `Vous avez rejoint le concours pour "${g.prize}" !`
-            : `Participation annulée pour "${g.prize}".`
+            ? t("demo.toastJoined", `Vous avez rejoint le concours pour "${g.prize}" !`, { prize: g.prize })
+            : t("demo.toastLeft", `Participation annulée pour "${g.prize}".`, { prize: g.prize })
         )
         return {
           ...g,
@@ -96,7 +101,7 @@ export default function Demo() {
               </span>
             </Link>
             <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-xs font-semibold text-amber-300 animate-pulse">
-              🎮 DÉMO INTERACTIVE
+              {t("demo.badge", "🎮 DÉMO INTERACTIVE")}
             </span>
           </div>
 
@@ -109,14 +114,14 @@ export default function Demo() {
               rel="noopener noreferrer"
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs sm:text-sm font-bold px-4 py-2 shadow-lg shadow-indigo-600/30 transition transform hover:scale-105"
             >
-              <span>+ Inviter Sparcky</span>
+              <span>{t("demo.invite", "+ Inviter Sparcky")}</span>
             </a>
 
             <Link
               to="/login"
               className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 text-xs sm:text-sm font-semibold px-3 py-2 transition"
             >
-              Connexion
+              {t("demo.login", "Connexion")}
             </Link>
           </div>
         </div>
@@ -128,19 +133,37 @@ export default function Demo() {
         <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-indigo-900/30 via-slate-900/60 to-purple-900/20 p-6 sm:p-8 backdrop-blur shadow-2xl relative overflow-hidden">
           <div className="absolute right-0 top-0 -mt-10 -mr-10 h-48 w-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
-            Bienvenue dans le Sandbox Démo de God_Sparky
+            {t("demo.welcomeTitle", "Bienvenue dans le Sandbox Démo de God_Sparky")}
           </h1>
           <p className="mt-2 text-sm sm:text-base text-slate-300 max-w-3xl">
-            Découvrez et manipulez toutes les fonctionnalités du bot comme si vous étiez dans votre propre serveur.
-            Basculez les modules, rejoignez un giveaway virtuel ou testez le Blind Test sans aucun compte requis !
+            {t(
+              "demo.welcomeDesc",
+              "Découvrez et manipulez toutes les fonctionnalités du bot comme si vous étiez dans votre propre serveur. Basculez les modules, rejoignez un giveaway virtuel ou testez le Blind Test sans aucun compte requis !"
+            )}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
             {[
-              { id: "security", label: "🛡️ Sécurité & Auto-Mod", desc: "Anti-lien, anti-spam, confinement" },
-              { id: "economy", label: "🪙 Économie & Niveaux", desc: "Coins, salaires, récompenses" },
-              { id: "giveaways", label: "🎉 Giveaways", desc: "Tirages au sort interactifs" },
-              { id: "blindtest", label: "🎧 Blind Test Vocal", desc: "6 thèmes musicaux Deezer" },
+              {
+                id: "security",
+                label: t("demo.tabSecurity", "🛡️ Sécurité & Auto-Mod"),
+                desc: t("demo.tabSecurityDesc", "Anti-lien, anti-spam, confinement"),
+              },
+              {
+                id: "economy",
+                label: t("demo.tabEconomy", "🪙 Économie & Niveaux"),
+                desc: t("demo.tabEconomyDesc", "Coins, salaires, récompenses"),
+              },
+              {
+                id: "giveaways",
+                label: t("demo.tabGiveaways", "🎉 Giveaways"),
+                desc: t("demo.tabGiveawaysDesc", "Tirages au sort interactifs"),
+              },
+              {
+                id: "blindtest",
+                label: t("demo.tabBlindtest", "🎧 Blind Test Vocal"),
+                desc: t("demo.tabBlindtestDesc", "6 thèmes musicaux Deezer"),
+              },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -163,19 +186,39 @@ export default function Demo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 space-y-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🛡️</span> Modules de Protection
+                <span>🛡️</span> {t("demo.secTitle", "Modules de Protection")}
               </h2>
               <p className="text-xs text-slate-400">
-                Activez ou désactivez les défenses en direct.
+                {t("demo.secSubtitle", "Activez ou désactivez les défenses en direct.")}
               </p>
 
               <div className="space-y-3">
                 {[
-                  { key: "antilink", label: "Protection Anti-Lien", desc: "Supprime les invitations et liens suspects" },
-                  { key: "antispam", label: "Protection Anti-Spam", desc: "Bloque le flood et messages répétés" },
-                  { key: "antiRaid", label: "Confinement Anti-Raid", desc: "Expulse les raids d'utilisateurs massifs" },
-                  { key: "antiBadWords", label: "Censure des Mots Interdits", desc: "Filtre le langage inapproprié" },
-                  { key: "autoSanction", label: "Sanctions Automatiques", desc: "3 warns = mute, 5 = kick, 7 = ban" },
+                  {
+                    key: "antilink",
+                    label: t("demo.secAntilink", "Protection Anti-Lien"),
+                    desc: t("demo.secAntilinkDesc", "Supprime les invitations et liens suspects"),
+                  },
+                  {
+                    key: "antispam",
+                    label: t("demo.secAntispam", "Protection Anti-Spam"),
+                    desc: t("demo.secAntispamDesc", "Bloque le flood et messages répétés"),
+                  },
+                  {
+                    key: "antiRaid",
+                    label: t("demo.secAntiraid", "Confinement Anti-Raid"),
+                    desc: t("demo.secAntiraidDesc", "Expulse les raids d'utilisateurs massifs"),
+                  },
+                  {
+                    key: "antiBadWords",
+                    label: t("demo.secAntibadwords", "Censure des Mots Interdits"),
+                    desc: t("demo.secAntibadwordsDesc", "Filtre le langage inapproprié"),
+                  },
+                  {
+                    key: "autoSanction",
+                    label: t("demo.secAutosanctions", "Sanctions Automatiques"),
+                    desc: t("demo.secAutosanctionsDesc", "3 warns = mute, 5 = kick, 7 = ban"),
+                  },
                 ].map((item) => (
                   <div
                     key={item.key}
@@ -205,27 +248,40 @@ export default function Demo() {
             <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 space-y-4 flex flex-col justify-between">
               <div>
                 <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span>📜</span> Simulation Logs de Sécurité
+                  <span>📜</span> {t("demo.secLogsTitle", "Simulation Logs de Sécurité")}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Aperçu des alertes envoyées en direct aux modérateurs dans le salon de logs.
+                  {t(
+                    "demo.secLogsSubtitle",
+                    "Aperçu des alertes envoyées en direct aux modérateurs dans le salon de logs."
+                  )}
                 </p>
 
                 <div className="mt-4 space-y-2 text-xs font-mono">
                   <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/20 text-emerald-300">
-                    [INFO] Sécurité opérationnelle • 0 incident critique dans les dernières 24h
+                    {t("demo.secLog1", "[INFO] Sécurité opérationnelle • 0 incident critique dans les dernières 24h")}
                   </div>
                   <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/20 text-amber-300">
-                    [AUTO-MOD] Message de @SpamUser supprimé (Lien suspect bloqué dans #général)
+                    {t(
+                      "demo.secLog2",
+                      "[AUTO-MOD] Message de @SpamUser supprimé (Lien suspect bloqué dans #général)"
+                    )}
                   </div>
                   <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-indigo-300">
-                    [WARN] Seuil 3 avertissements atteint : @BadActor mis en sourdine pendant 10m
+                    {t(
+                      "demo.secLog3",
+                      "[WARN] Seuil 3 avertissements atteint : @BadActor mis en sourdine pendant 10m"
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/20 p-4 text-xs text-indigo-200">
-                💡 <strong>Prêt pour votre serveur ?</strong> Utilisez la commande <code>/security status</code> directement sur Discord !
+                💡 <strong>{t("demo.secTipReady", "Prêt pour votre serveur ?")}</strong>{" "}
+                {t(
+                  "demo.secTipCmd",
+                  "Utilisez la commande /security status directement sur Discord !"
+                )}
               </div>
             </div>
           </div>
@@ -236,14 +292,18 @@ export default function Demo() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 space-y-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🪙</span> Configuration Économique
+                <span>🪙</span> {t("demo.ecoConfigTitle", "Configuration Économique")}
               </h2>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-950/60 border border-white/5">
                   <div>
-                    <div className="font-semibold text-sm text-slate-200">Système Économique Global</div>
-                    <div className="text-xs text-slate-400">Active les commandes /work, /daily, /coinflip, /pay</div>
+                    <div className="font-semibold text-sm text-slate-200">
+                      {t("demo.ecoGlobal", "Système Économique Global")}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {t("demo.ecoGlobalDesc", "Active les commandes /work, /daily, /coinflip, /pay")}
+                    </div>
                   </div>
                   <button
                     onClick={() => toggleConfig("economyEnabled")}
@@ -261,16 +321,24 @@ export default function Demo() {
 
                 <div className="p-4 rounded-2xl bg-slate-950/60 border border-white/5 space-y-3">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300">Récompense Quotidienne (/daily) :</span>
+                    <span className="text-slate-300">
+                      {t("demo.ecoDaily", "Récompense Quotidienne (/daily) :")}
+                    </span>
                     <span className="font-bold text-amber-400">500 Coins</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300">Salaire (/work) :</span>
-                    <span className="font-bold text-emerald-400">50 à 250 Coins</span>
+                    <span className="text-slate-300">{t("demo.ecoSalary", "Salaire (/work) :")}</span>
+                    <span className="font-bold text-emerald-400">
+                      {t("demo.ecoSalaryVal", "50 à 250 Coins")}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-300">Mini-jeu Pile ou Face (/coinflip) :</span>
-                    <span className="font-bold text-indigo-400">Mise x2</span>
+                    <span className="text-slate-300">
+                      {t("demo.ecoCoinflip", "Mini-jeu Pile ou Face (/coinflip) :")}
+                    </span>
+                    <span className="font-bold text-indigo-400">
+                      {t("demo.ecoCoinflipVal", "Mise x2")}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -278,7 +346,7 @@ export default function Demo() {
 
             <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 space-y-4">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>🏆</span> Classement Fictif Démo
+                <span>🏆</span> {t("demo.ecoRankingTitle", "Classement Fictif Démo")}
               </h2>
 
               <div className="space-y-2 text-sm">
@@ -286,7 +354,13 @@ export default function Demo() {
                   { rank: "🥇", name: "Alexandre_94", level: 24, coins: "45,200", xp: "12,450 XP" },
                   { rank: "🥈", name: "Sarah_Gamer", level: 19, coins: "32,800", xp: "9,800 XP" },
                   { rank: "🥉", name: "Maxime_Dev", level: 15, coins: "21,500", xp: "7,200 XP" },
-                  { rank: "4️⃣", name: "Vous (Invité)", level: 8, coins: "6,500", xp: "3,100 XP" },
+                  {
+                    rank: "4️⃣",
+                    name: t("demo.ecoYouGuest", "Vous (Invité)"),
+                    level: 8,
+                    coins: "6,500",
+                    xp: "3,100 XP",
+                  },
                 ].map((user) => (
                   <div
                     key={user.name}
@@ -297,7 +371,9 @@ export default function Demo() {
                       <span className="font-semibold text-slate-200">{user.name}</span>
                     </div>
                     <div className="flex items-center gap-4 text-xs font-mono">
-                      <span className="text-indigo-300 font-bold">Niv. {user.level}</span>
+                      <span className="text-indigo-300 font-bold">
+                        {t("demo.ecoLvlPrefix", "Niv.")} {user.level}
+                      </span>
                       <span className="text-amber-300 font-bold">{user.coins} 🪙</span>
                     </div>
                   </div>
@@ -313,10 +389,13 @@ export default function Demo() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                  <span>🎉</span> Simulateur de Giveaways Discord
+                  <span>🎉</span> {t("demo.gwSimTitle", "Simulateur de Giveaways Discord")}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Cliquez sur "Participer" pour simuler une inscription de joueur en direct !
+                  {t(
+                    "demo.gwSimSubtitle",
+                    "Cliquez sur \"Participer\" pour simuler une inscription de joueur en direct !"
+                  )}
                 </p>
               </div>
             </div>
@@ -330,7 +409,7 @@ export default function Demo() {
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="rounded-full bg-indigo-500/20 border border-indigo-500/30 px-3 py-1 text-xs font-bold text-indigo-300">
-                        {gw.winners} gagnant(s)
+                        {gw.winners} {t("demo.gwWinnersSuffix", "gagnant(s)")}
                       </span>
                       <h3 className="mt-2 text-lg font-extrabold text-white">{gw.prize}</h3>
                     </div>
@@ -339,10 +418,11 @@ export default function Demo() {
 
                   <div className="flex items-center gap-4 text-xs text-slate-400 border-y border-white/5 py-3">
                     <div>
-                      👥 Participants : <strong className="text-slate-200">{gw.participantsCount}</strong>
+                      👥 {t("demo.gwParticipants", "Participants :")}{" "}
+                      <strong className="text-slate-200">{gw.participantsCount}</strong>
                     </div>
                     <div>
-                      ⏳ Fin : <strong className="text-slate-200">Dans 24 heures</strong>
+                      ⏳ {t("demo.gwEndsIn", "Fin : Dans 24 heures")}
                     </div>
                   </div>
 
@@ -354,7 +434,9 @@ export default function Demo() {
                         : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-600/30"
                     }`}
                   >
-                    {gw.joined ? "✅ Vous participez (Cliquez pour quitter)" : "🎉 Participer au concours"}
+                    {gw.joined
+                      ? t("demo.gwYouParticipate", "✅ Vous participez (Cliquez pour quitter)")
+                      : t("demo.gwEnterBtn", "🎉 Participer au concours")}
                   </button>
                 </div>
               ))}
@@ -367,22 +449,48 @@ export default function Demo() {
           <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-6 sm:p-8 space-y-6">
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <span>🎧</span> Blind Test Vocal Multijoueur
+                <span>🎧</span> {t("demo.btTitle", "Blind Test Vocal Multijoueur")}
               </h2>
               <p className="mt-1 text-sm text-slate-300">
-                Sparcky diffuse des extraits musicaux HD directement dans votre salon vocal Discord.
-                Les joueurs écrivent leurs réponses dans le chat avec reconnaissance intelligente et tolérance aux fautes de frappe !
+                {t(
+                  "demo.btSubtitle",
+                  "Sparcky diffuse des extraits musicaux HD directement dans votre salon vocal Discord. Les joueurs écrivent leurs réponses dans le chat avec reconnaissance intelligente et tolérance aux fautes de frappe !"
+                )}
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[
-                { title: "Top Hits Français & US", emoji: "🔥", desc: "Shakira, Dua Lipa, The Weeknd, Vacra, Aya..." },
-                { title: "Années 80 & 90", emoji: "🕺", desc: "Sweet Dreams, Billie Jean, Goldman, Gala, Eurythmics..." },
-                { title: "Rap Français & US", emoji: "🎤", desc: "Ninho, Tiakola, Eminem, Damso, Gambi, Drake..." },
-                { title: "Disney & Dessins Animés", emoji: "🏰", desc: "Libérée Délivrée, Roi Lion, Aladdin, Vaiana, Coco..." },
-                { title: "Films & BO Cultes", emoji: "🍿", desc: "Star Wars, Grease, Pirates des Caraïbes, Interstellar..." },
-                { title: "Anime & Gaming", emoji: "🎮", desc: "Naruto, Demon Slayer, Tokyo Ghoul, Evangelion, Mario..." },
+                {
+                  title: t("demo.themeHitsTitle", "Top Hits Français & US"),
+                  emoji: "🔥",
+                  desc: t("demo.themeHitsDesc", "Shakira, Dua Lipa, The Weeknd, Vacra, Aya..."),
+                },
+                {
+                  title: t("demo.theme80sTitle", "Années 80 & 90"),
+                  emoji: "🕺",
+                  desc: t("demo.theme80sDesc", "Sweet Dreams, Billie Jean, Goldman, Gala, Eurythmics..."),
+                },
+                {
+                  title: t("demo.themeRapTitle", "Rap Français & US"),
+                  emoji: "🎤",
+                  desc: t("demo.themeRapDesc", "Ninho, Tiakola, Eminem, Damso, Gambi, Drake..."),
+                },
+                {
+                  title: t("demo.themeDisneyTitle", "Disney & Dessins Animés"),
+                  emoji: "🏰",
+                  desc: t("demo.themeDisneyDesc", "Libérée Délivrée, Roi Lion, Aladdin, Vaiana, Coco..."),
+                },
+                {
+                  title: t("demo.themeMoviesTitle", "Films & BO Cultes"),
+                  emoji: "🍿",
+                  desc: t("demo.themeMoviesDesc", "Star Wars, Grease, Pirates des Caraïbes, Interstellar..."),
+                },
+                {
+                  title: t("demo.themeAnimeTitle", "Anime & Gaming"),
+                  emoji: "🎮",
+                  desc: t("demo.themeAnimeDesc", "Naruto, Demon Slayer, Tokyo Ghoul, Evangelion, Mario..."),
+                },
               ].map((theme) => (
                 <div
                   key={theme.title}
@@ -394,7 +502,7 @@ export default function Demo() {
                   </div>
                   <p className="text-xs text-slate-400">{theme.desc}</p>
                   <div className="text-[11px] font-semibold text-emerald-400">
-                    ✓ Playlists Deezer officielles vérifiées
+                    {t("demo.btDeezerVerified", "✓ Playlists Deezer officielles vérifiées")}
                   </div>
                 </div>
               ))}
@@ -402,9 +510,15 @@ export default function Demo() {
 
             <div className="p-4 rounded-2xl bg-indigo-950/40 border border-indigo-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
-                <div className="font-bold text-sm text-white">Lancez une partie sur Discord en 1 seconde :</div>
+                <div className="font-bold text-sm text-white">
+                  {t("demo.btQuickStart", "Lancez une partie sur Discord en 1 seconde :")}
+                </div>
                 <div className="text-xs text-slate-300">
-                  Tapez <code>/blindtest start theme:disney rounds:10 duration:30</code> dans votre salon vocal !
+                  {t(
+                    "demo.btQuickStartCmd",
+                    "Tapez {cmd} dans votre salon vocal !",
+                    { cmd: "/blindtest start theme:disney rounds:10 duration:30" }
+                  )}
                 </div>
               </div>
               <a
@@ -413,7 +527,7 @@ export default function Demo() {
                 rel="noopener noreferrer"
                 className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2.5 shadow-lg shadow-indigo-600/30 whitespace-nowrap"
               >
-                Essayer sur mon serveur →
+                {t("demo.btTryBtn", "Essayer sur mon serveur →")}
               </a>
             </div>
           </div>
@@ -422,11 +536,17 @@ export default function Demo() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <div>God_Sparky © 2026 • Développé avec passion pour Discord</div>
+        <div>{t("demo.footerCredit", "God_Sparky © 2026 • Développé avec passion pour Discord")}</div>
         <div className="mt-2 space-x-4">
-          <Link to="/terms" className="hover:underline">Conditions d'Utilisation</Link>
-          <Link to="/privacy" className="hover:underline">Politique de Confidentialité</Link>
-          <Link to="/login" className="hover:underline text-indigo-400">Connexion Panel</Link>
+          <Link to="/terms" className="hover:underline">
+            {t("demo.footerTerms", "Conditions d'Utilisation")}
+          </Link>
+          <Link to="/privacy" className="hover:underline">
+            {t("demo.footerPrivacy", "Politique de Confidentialité")}
+          </Link>
+          <Link to="/login" className="hover:underline text-indigo-400">
+            {t("demo.footerLogin", "Connexion Panel")}
+          </Link>
         </div>
       </footer>
     </div>

@@ -1342,36 +1342,36 @@ export default function GuildPage() {
                       <div className="mt-6 space-y-4">
                         <Toggle
                           label="Activer le système de niveaux et d'XP"
-                          description="Les membres reçoivent de l'expérience aléatoire (15 à 30 XP) à chaque message envoyé avec un délai d'une minute."
+                          description={t("lvl.toggleDesc")}
                           checked={config?.xpEnabled !== false}
                           onChange={v => updateField("xpEnabled", v)}
                         />
 
                         <SelectField
-                          label="Salon d'annonce des passages de niveau"
-                          description="Où envoyer le message de félicitations lors d'un level up."
+                          label={t("lvl.channel")}
+                          description={t("lvl.channelDesc")}
                           value={config?.xpChannelId}
                           onChange={val => updateField("xpChannelId", val)}
                           options={[
-                            { id: "", name: "Dans le salon où le message a été envoyé (défaut)" },
-                            { id: "none", name: "Désactiver les annonces (silencieux)" },
+                            { id: "", name: t("lvl.channelDefault", "Dans le salon où le message a été envoyé (défaut)") },
+                            { id: "none", name: t("lvl.channelSilent", "Désactiver les annonces (silencieux)") },
                             ...textChannels
                           ]}
-                          placeholder="Même salon que le message"
+                          placeholder={t("lvl.channelPlaceholder", "Même salon que le message")}
                         />
                       </div>
                     </div>
 
                     {/* Rôles de Récompenses (Level Rewards) */}
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Rôles de Paliers (Level Rewards)</h2>
+                      <h2 className="text-lg font-bold text-white">{t("lvl.rewardsTitle")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Attribuez automatiquement des rôles Discord lorsqu'un membre atteint un niveau spécifique.
+                        {t("lvl.rewardsDesc")}
                       </p>
 
                       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
                         <div className="w-full sm:w-36">
-                          <label className="text-xs font-semibold text-slate-400">Niveau requis</label>
+                          <label className="text-xs font-semibold text-slate-400">{t("lvl.reqLevel", "Niveau requis")}</label>
                           <input
                             type="number"
                             min={1}
@@ -1382,13 +1382,13 @@ export default function GuildPage() {
                         </div>
 
                         <div className="flex-1">
-                          <label className="text-xs font-semibold text-slate-400">Rôle attribué</label>
+                          <label className="text-xs font-semibold text-slate-400">{t("lvl.assignedRole", "Rôle attribué")}</label>
                           <select
                             value={newLevelRoleRoleId}
                             onChange={e => setNewLevelRoleRoleId(e.target.value)}
                             className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500"
                           >
-                            <option value="">Sélectionner un rôle...</option>
+                            <option value="">{t("lvl.selectRole", "Sélectionner un rôle...")}</option>
                             {roles.map(r => (
                               <option key={r.id} value={r.id}>
                                 {r.name}
@@ -1404,7 +1404,7 @@ export default function GuildPage() {
                             disabled={!newLevelRoleRoleId}
                             className="w-full rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:opacity-50"
                           >
-                            + Lier le rôle
+                            {t("lvl.linkRole", "+ Lier le rôle")}
                           </button>
                         </div>
                       </div>
@@ -1421,7 +1421,7 @@ export default function GuildPage() {
                                 >
                                   <div>
                                     <span className="rounded-lg bg-emerald-500/15 px-2 py-0.5 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/30">
-                                      Niveau {lr.level}
+                                      {t("demo.ecoLvlPrefix", "Niveau")} {lr.level}
                                     </span>
                                     <p className="mt-2 font-semibold text-white">
                                       {roleObj?.name || `Rôle ID: ${lr.roleId}`}
@@ -1443,7 +1443,7 @@ export default function GuildPage() {
                           </div>
                         ) : (
                           <div className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs text-slate-400">
-                            Aucun palier de niveau configuré pour l'instant.
+                            {t("lvl.noTiers", "Aucun palier de niveau configuré pour l'instant.")}
                           </div>
                         )}
                       </div>
@@ -1451,19 +1451,19 @@ export default function GuildPage() {
 
                     {/* Classement XP */}
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Classement d'Expérience des Membres</h2>
+                      <h2 className="text-lg font-bold text-white">{t("lvl.leaderboardTitle")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Top des utilisateurs ayant accumulé le plus d'XP.
+                        {t("lvl.leaderboardDesc", "Top des utilisateurs ayant accumulé le plus d'XP.")}
                       </p>
 
                       <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
                         <table className="w-full text-left text-sm">
                           <thead className="border-b border-white/10 bg-white/5 text-xs text-slate-400">
                             <tr>
-                              <th className="px-4 py-3">Rang</th>
-                              <th className="px-4 py-3">Membre</th>
-                              <th className="px-4 py-3">Niveau</th>
-                              <th className="px-4 py-3">XP Total</th>
+                              <th className="px-4 py-3">{t("lvl.colRank", "Rang")}</th>
+                              <th className="px-4 py-3">{t("lvl.colMember", "Membre")}</th>
+                              <th className="px-4 py-3">{t("lvl.colLevel", "Niveau")}</th>
+                              <th className="px-4 py-3">{t("lvl.colXp", "XP Total")}</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-white/5 text-slate-300">
@@ -1484,7 +1484,7 @@ export default function GuildPage() {
                                 </td>
                                 <td className="px-4 py-3">
                                   <span className="rounded-lg bg-indigo-500/15 px-2 py-0.5 text-xs font-bold text-indigo-300 ring-1 ring-indigo-500/30">
-                                    Niveau {u.level}
+                                    {t("demo.ecoLvlPrefix", "Niveau")} {u.level}
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 font-mono font-bold text-slate-200">
@@ -1495,7 +1495,7 @@ export default function GuildPage() {
                             {xpLeaderboard.length === 0 && (
                               <tr>
                                 <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                                  Aucun niveau enregistré pour le moment.
+                                  {t("lvl.noXpUsers", "Aucun niveau enregistré pour le moment.")}
                                 </td>
                               </tr>
                             )}
