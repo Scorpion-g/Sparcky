@@ -13,42 +13,129 @@ const logger = require("./logger");
 const User = require("../models/User");
 const GuildConfiguration = require("../models/GuildConfiguration");
 
-// Thèmes musicaux disponibles avec requêtes Deezer
+// Thèmes musicaux disponibles avec requêtes Deezer (playlists officielles et vérifiées)
 const THEMES = {
   hits: {
     name: "Top Hits Français & Internationaux",
     emoji: "🔥",
-    url: "https://api.deezer.com/chart/0/tracks?limit=100"
+    urls: [
+      "https://api.deezer.com/chart/0/tracks?limit=100",
+      "https://api.deezer.com/playlist/1109890291/tracks?limit=100" // Titres du moment
+    ]
   },
   "80s_90s": {
     name: "Années 80 & 90 Nostalgie",
     emoji: "🕺",
-    url: "https://api.deezer.com/search?q=80s+90s+hits&limit=100"
+    urls: [
+      "https://api.deezer.com/playlist/1163842311/tracks?limit=100", // En mode 80
+      "https://api.deezer.com/playlist/1251125011/tracks?limit=100", // En mode 90
+      "https://api.deezer.com/playlist/1268089951/tracks?limit=100"  // Stars 80
+    ]
   },
   rap: {
     name: "Rap Français & US",
     emoji: "🎤",
-    url: "https://api.deezer.com/search?q=rap+francais+hits&limit=100"
+    urls: [
+      "https://api.deezer.com/playlist/1629661895/tracks?limit=100", // Rap Soirée
+      "https://api.deezer.com/playlist/1071669561/tracks?limit=100", // Actu Rap
+      "https://api.deezer.com/playlist/9563400362/tracks?limit=100"  // Rapstars
+    ]
   },
   disney: {
     name: "Disney & Dessins Animés",
     emoji: "🏰",
-    url: "https://api.deezer.com/search?q=disney+chansons&limit=100"
+    urls: [
+      "https://api.deezer.com/playlist/7548451242/tracks?limit=100", // Disney Hits France (chansons cultes & récentes)
+      "https://api.deezer.com/playlist/6153956244/tracks?limit=100"  // Disney : Les 100 plus belles chansons
+    ]
   },
   cinema: {
     name: "Films & Séries Culte",
     emoji: "🍿",
-    url: "https://api.deezer.com/search?q=soundtrack+movie+theme&limit=100"
+    urls: [
+      "https://api.deezer.com/playlist/754776991/tracks?limit=100",  // Film Classics
+      "https://api.deezer.com/playlist/3415555122/tracks?limit=100", // Greatest Movies Epic Soundtracks
+      "https://api.deezer.com/playlist/10485891442/tracks?limit=100" // 100 musiques de films culte
+    ]
   },
   anime_gaming: {
     name: "Anime, Manga & Gaming",
     emoji: "🎮",
-    url: "https://api.deezer.com/search?q=anime+opening+ost&limit=100"
+    urls: [
+      "https://api.deezer.com/playlist/9016993522/tracks?limit=100", // Anime Essentials 定番アニメ
+      "https://api.deezer.com/playlist/7490833544/tracks?limit=100"  // Best Anime Openings
+    ]
   }
+};
+
+// Traductions des films culte pour autoriser les réponses en français
+const MOVIE_TRANSLATIONS = {
+  "the lion king": "le roi lion",
+  "the little mermaid": "la petite sirene",
+  "beauty and the beast": "la belle et la bete",
+  "snow white": "blanche neige",
+  "sleeping beauty": "la belle au bois dormant",
+  "frozen": "la reine des neiges",
+  "tangled": "raiponce",
+  "moana": "vaiana",
+  "the jungle book": "le livre de la jungle",
+  "the aristocats": "les aristochats",
+  "the nightmare before christmas": "l etrange noel de monsieur jack"
 };
 
 // Map des parties actives : guildId -> GameInstance
 const activeGames = new Map();
+
+/**
+ * Filtre les livres audio, podcasts, chapitres parlés et bruitages
+ */
+function isSpokenOrPodcast(track) {
+  const badPatterns = [
+    /^(?:chapitre|chapter|épisode|episode)\s*\d+/i,
+    /\b(?:audiobook|livre audio|podcast)\b/i,
+    /^(?:les\s+)?histoires?\s+(?:de|du|des|pour)\b/i,
+    /\bvol(?:\.|\s)\s*\d+/i,
+    /\bpart\s*\d+/i,
+    /\bbruitage\b/i,
+    /\bsound effect\b/i
+  ];
+  const badAlbumPatterns = [
+    /\b(?:audiobook|livre audio|podcast)\b/i,
+    /^(?:les\s+)?histoires?\s+(?:de|du|des|pour)\b/i,
+    /les histoires des films/i
+  ];
+  const title = track.title || "";
+  const titleShort = track.title_short || "";
+  const album = track.album?.title || "";
+  const artist = track.artist?.name || "";
+
+  if (badPatterns.some((re) => re.test(title) || re.test(titleShort))) return true;
+  if (badAlbumPatterns.some((re) => re.test(album))) return true;
+  if (/\b(?:audiobook|livre audio|podcast)\b/i.test(artist)) return true;
+  return false;
+}
+
+/**
+ * Extrait le nom du film ou univers (Disney, films, etc.) depuis le titre ou l'album
+ */
+function extractMovieOrUniverse(track) {
+  const title = track.title || "";
+  const match = title.match(/(?:de|from)\s*["«“]([^"»”]+)["»”]/i);
+  if (match) return match[1].trim();
+
+  const album = track.album?.title || "";
+  const cleanedAlbum = album
+    .replace(/\(.*?\)/g, "")
+    .replace(/\[.*?\]/g, "")
+    .replace(/(?:original soundtrack|bande originale.*|motion picture soundtrack|soundtrack|b\.?o\.?f?)/gi, "")
+    .replace(/[-:]\s*$/g, "")
+    .trim();
+
+  if (cleanedAlbum && cleanedAlbum.length >= 3) {
+    return cleanedAlbum;
+  }
+  return null;
+}
 
 /**
  * Nettoie une chaîne pour une comparaison tolérante
@@ -74,11 +161,13 @@ function stripLeadingArticle(str) {
 }
 
 /**
- * Vérifie si une tentative correspond au titre ou à l'artiste
+ * Vérifie si une tentative correspond au titre, à l'artiste ou au film
  */
 function checkGuess(guess, track) {
   const cleanGuess = cleanString(guess);
-  if (!cleanGuess || cleanGuess.length < 2) return { matchTitle: false, matchArtist: false };
+  if (!cleanGuess || cleanGuess.length < 2) {
+    return { matchTitle: false, matchArtist: false, matchedMovie: false };
+  }
 
   const rawTitle = track.title_short || track.title || "";
   const cleanTitle = cleanString(rawTitle);
@@ -87,6 +176,11 @@ function checkGuess(guess, track) {
   const rawArtist = track.artist?.name || "";
   const cleanArtist = cleanString(rawArtist);
   const artistNoArticle = stripLeadingArticle(cleanArtist);
+
+  const rawMovie = track.movie || "";
+  const cleanMovie = cleanString(rawMovie);
+  const movieNoArticle = stripLeadingArticle(cleanMovie);
+  const translatedMovie = cleanMovie ? MOVIE_TRANSLATIONS[cleanMovie] : null;
 
   let matchTitle = false;
   if (cleanTitle.length >= 2) {
@@ -100,6 +194,7 @@ function checkGuess(guess, track) {
   }
 
   let matchArtist = false;
+  let matchedMovie = false;
   if (cleanArtist.length >= 2) {
     if (cleanGuess === cleanArtist || cleanGuess === artistNoArticle) {
       matchArtist = true;
@@ -110,7 +205,22 @@ function checkGuess(guess, track) {
     }
   }
 
-  return { matchTitle, matchArtist };
+  // Si l'artiste n'est pas trouvé et qu'un film/univers est associé (Disney, Cinéma...)
+  if (!matchArtist && cleanMovie && cleanMovie.length >= 3) {
+    const candidates = [cleanMovie, movieNoArticle];
+    if (translatedMovie) candidates.push(translatedMovie);
+
+    for (const cand of candidates) {
+      if (!cand || cand.length < 3) continue;
+      if (cleanGuess === cand || cleanGuess.includes(cand) || (cleanGuess.length >= 3 && cand.includes(cleanGuess))) {
+        matchArtist = true;
+        matchedMovie = true;
+        break;
+      }
+    }
+  }
+
+  return { matchTitle, matchArtist, matchedMovie };
 }
 
 /**
@@ -130,22 +240,33 @@ function shuffle(array) {
  */
 async function fetchTracksForTheme(themeKey) {
   const theme = THEMES[themeKey] || THEMES.hits;
-  try {
-    const res = await fetch(theme.url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  const urls = theme.urls || (theme.url ? [theme.url] : []);
+  const allTracks = [];
+  const seenIds = new Set();
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const list = (data.data || []).filter(
+        (t) => t.preview && t.title && t.artist?.name && !isSpokenOrPodcast(t) && !seenIds.has(t.id)
+      );
+      for (const t of list) {
+        seenIds.add(t.id);
+        t.movie = extractMovieOrUniverse(t);
+        allTracks.push(t);
       }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const list = (data.data || []).filter(
-      (item) => item.preview && item.title && item.artist?.name
-    );
-    return shuffle(list);
-  } catch (err) {
-    logger.error(`[BLINDTEST] Erreur fetchTracks (${themeKey}): ${err.message}`);
-    return [];
+    } catch (err) {
+      logger.warn(`[BLINDTEST] Impossible de charger la playlist ${url}: ${err.message}`);
+    }
   }
+
+  return shuffle(allTracks);
 }
 
 /**
@@ -359,7 +480,7 @@ async function playNextRound(game) {
   collector.on("collect", async (msg) => {
     if (game.isEnded) return;
 
-    const { matchTitle, matchArtist } = checkGuess(msg.content, track);
+    const { matchTitle, matchArtist, matchedMovie } = checkGuess(msg.content, track);
 
     // Titre trouvé
     if (matchTitle && !game.titleFoundBy) {
@@ -371,13 +492,14 @@ async function playNextRound(game) {
       }).catch(() => {});
     }
 
-    // Artiste trouvé
+    // Artiste (ou film / univers) trouvé
     if (matchArtist && !game.artistFoundBy) {
       game.artistFoundBy = msg.author.id;
       addScore(game, msg.author, 1);
-      await msg.react("🎤").catch(() => {});
+      await msg.react(matchedMovie ? "🎬" : "🎤").catch(() => {});
+      const label = matchedMovie ? "le **film / univers**" : "l'**artiste**";
       await game.textChannel.send({
-        content: `🎯 Bien joué <@${msg.author.id}> a trouvé l'**artiste** ! (+1 pt)`
+        content: `🎯 Bien joué <@${msg.author.id}> a trouvé ${label} ! (+1 pt)`
       }).catch(() => {});
     }
 
@@ -409,13 +531,16 @@ async function endRound(game) {
     ? sortedScores.slice(0, 5).map((s, idx) => `**#${idx + 1}** ${s.user.username} : \`${s.score} pt(s)\``).join("\n")
     : "*Aucun point marqué sur cette manche*";
 
+  const movieLine = track.movie ? `🎬 **Film / Univers :** **${track.movie}**\n` : "";
+
   const resultEmbed = new EmbedBuilder()
     .setTitle(`🔔 Fin de la Manche ${game.currentRound} / ${game.totalRounds}`)
     .setDescription(
       `🎶 **Morceau :** **${track.title}**\n` +
-      `👤 **Artiste :** **${track.artist.name}**\n\n` +
-      `🏆 **Titre trouvé par :** ${titleWinner}\n` +
-      `🎤 **Artiste trouvé par :** ${artistWinner}\n\n` +
+      `👤 **Artiste :** **${track.artist.name}**\n` +
+      movieLine +
+      `\n🏆 **Titre trouvé par :** ${titleWinner}\n` +
+      `🎤 **Artiste / Film trouvé par :** ${artistWinner}\n\n` +
       `📊 **Classement actuel :**\n${scoreText}`
     )
     .setColor(0x10b981)
@@ -553,5 +678,7 @@ module.exports = {
   isGameActive,
   checkGuess,
   cleanString,
-  getAudioResource
+  getAudioResource,
+  isSpokenOrPodcast,
+  extractMovieOrUniverse
 };

@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.2.1";
+const CURRENT_VERSION = "2.2.2";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,26 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.2.2",
+    date: "10 Novembre 2026",
+    type: "PATCH",
+    githubUrl: getGitHubReleaseUrl("2.2.2"),
+    title: "Correctif v2.2.2 : Chansons Disney Cultes & Playlists Officielles Vérifiées",
+    summary: "Remplacement des recherches textuelles Deezer par des playlists officielles et vérifiées (Disney Hits France, Film Classics, En mode 80/90...). Élimination totale des chapitres de livres audio, contes et podcasts, et support de la détection du film/dessin animé en direct dans le chat.",
+    highlights: [
+      {
+        emoji: "🏰",
+        title: "100% Chansons Disney & Zéro Podcast",
+        desc: "Filtrage automatique des chapitres de livres audio et utilisation des playlists Disney officielles."
+      },
+      {
+        emoji: "🎬",
+        title: "Détection du Film / Univers",
+        desc: "Les joueurs peuvent désormais trouver le film (ex: Aladdin, Le Roi Lion, Vaiana) pour marquer des points !"
+      }
+    ]
+  },
   {
     version: "2.2.1",
     date: "10 Novembre 2026",
