@@ -1,28 +1,84 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const {
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ComponentType,
+} = require("discord.js");
 const logger = require("../../utils/logger");
 const { getGuildLocale } = require("../../utils/getGuildLocale");
 const { COLORS, createSparkyEmbed } = require("../../utils/theme");
 
-const CATEGORY_META = {
-  Security: { label: "🛡️ Sécurité & Auto-Modération", order: 1 },
-  Automoderation: { label: "🛡️ Sécurité & Auto-Modération", order: 1 },
-  Moderation: { label: "⚖️ Modération & Sanctions", order: 2 },
-  Config: { label: "⚙️ Configuration Serveur", order: 3 },
-  Setup: { label: "⚙️ Configuration Serveur", order: 3 },
-  Config_cmds: { label: "⚙️ Configuration Serveur", order: 3 },
-  Economy: { label: "🪙 Économie & Niveaux", order: 4 },
-  Shop: { label: "🛒 Boutique & Rôles", order: 5 },
-  Fun: { label: "🎮 Mini-Jeux & Blind Test", order: 6 },
-  Ticket: { label: "🎫 Support & Tickets", order: 7 },
-  Utiles: { label: "🛠️ Utilitaires & Général", order: 8 },
-  Misc: { label: "🛠️ Utilitaires & Général", order: 8 },
-  Applicationmenu: { label: "📋 Raccourcis Menu", order: 9 },
-};
+const CATEGORIES = [
+  {
+    id: "security",
+    name: "Sécurité & Protection",
+    emoji: "🛡️",
+    desc: "Anti-lien, anti-spam, anti-raid, mots interdits et sanctions automatiques.",
+    color: COLORS.DANGER,
+    match: ["security", "automoderation"],
+  },
+  {
+    id: "moderation",
+    name: "Modération & Sanctions",
+    emoji: "⚖️",
+    desc: "Bannissement, expulsion, mute, avertissements et purge (/clear).",
+    color: COLORS.WARNING,
+    match: ["moderation"],
+  },
+  {
+    id: "setup",
+    name: "Configuration Serveur",
+    emoji: "⚙️",
+    desc: "Salons de bienvenue, départ, auto-role, langue et salons vocaux.",
+    color: COLORS.PRIMARY,
+    match: ["setup", "config", "config_cmds"],
+  },
+  {
+    id: "economy",
+    name: "Économie & Niveaux",
+    emoji: "🪙",
+    desc: "Monnaie virtuelle, daily, work, pile ou face, giveaways et niveaux XP.",
+    color: COLORS.SUCCESS,
+    match: ["economy"],
+  },
+  {
+    id: "shop",
+    name: "Boutique & Rôles",
+    emoji: "🛒",
+    desc: "Articles et rôles Discord achetables avec vos pièces virtuelles.",
+    color: 0xa855f7,
+    match: ["shop"],
+  },
+  {
+    id: "fun",
+    name: "Mini-Jeux & Blind Test",
+    emoji: "🎮",
+    desc: "Blind Test musical Deezer en salon vocal et jeux multijoueurs.",
+    color: COLORS.INFO,
+    match: ["fun"],
+  },
+  {
+    id: "tickets",
+    name: "Support & Tickets",
+    emoji: "🎫",
+    desc: "Système complet de tickets privés et d'assistance des membres.",
+    color: 0xec4899,
+    match: ["tickets", "ticket"],
+  },
+  {
+    id: "general",
+    name: "Utilitaires & Général",
+    emoji: "🛠️",
+    desc: "Commandes d'information, statut, latence, broadcast et aide.",
+    color: COLORS.NEUTRAL,
+    match: ["general", "utiles", "misc", "applicationmenu"],
+  },
+];
 
 function normalizeDiscordLocale(locale) {
   if (!locale || typeof locale !== "string") return "fr";
-  // DB: "en" -> Discord localizations: "en-US"
   if (locale === "en") return "en-US";
+  if (locale === "es") return "es-ES";
   return locale;
 }
 
@@ -33,116 +89,240 @@ async function getCommandDescriptionForLocale(command, interaction, resolvedLoca
 
     const discordLocale = normalizeDiscordLocale(resolvedLocale);
 
-    // 1) Description localisée du builder (si présente)
     const fromLocalizations =
       json.description_localizations?.[discordLocale] ||
       json.description_localizations?.[resolvedLocale];
     if (fromLocalizations) return fromLocalizations;
 
-    // 2) Fallback: si on a une clé i18n pour help (optionnel), ex: HELP.COMMANDS.<name>.DESC
-    // Ça permet d’avoir un help traduit même pour les commandes qui n’ont pas encore de localizations Discord.
     const fallbackKey = `HELP.COMMANDS.${json.name}.DESC`;
     const translated = await interaction.t?.(fallbackKey).catch?.(() => null);
     if (translated && translated !== fallbackKey) return translated;
 
-    // 3) Dernier fallback
-    return json.description;
+    return json.description || "Aucune description disponible";
   } catch {
-    return command?.data?.description;
+    return command?.data?.description || "Aucune description disponible";
   }
 }
 
+function buildSelectMenu(activeId = "home") {
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId("help_category_select")
+    .setPlaceholder("📂 Choisir une catégorie de commandes...")
+    .addOptions([
+      {
+        label: "Accueil / Vue d'ensemble",
+        value: "home",
+        description: "Retourner au sommaire principal",
+        emoji: "🏠",
+        default: activeId === "home",
+      },
+      ...CATEGORIES.map((cat) => ({
+        label: cat.name,
+        value: cat.id,
+        description: cat.desc.length > 100 ? cat.desc.slice(0, 97) + "..." : cat.desc,
+        emoji: cat.emoji,
+        default: activeId === cat.id,
+      })),
+    ]);
+
+  return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+function buildHomeEmbed(categoryCounts, totalCommands) {
+  const fields = CATEGORIES.map((cat) => {
+    const count = categoryCounts[cat.id] || 0;
+    return {
+      name: `${cat.emoji} ${cat.name} (${count} commande${count > 1 ? "s" : ""})`,
+      value: cat.desc,
+      inline: false,
+    };
+  });
+
+  fields.push(
+    {
+      name: "🌐 Dashboard Web",
+      value: "[sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)",
+      inline: true,
+    },
+    {
+      name: "🎮 Démo Interactive",
+      value: "[sparcky.matteoriviere.fr/demo](https://sparcky.matteoriviere.fr/demo)",
+      inline: true,
+    },
+    {
+      name: "🔗 Invitation",
+      value: `[Inviter Sparcky](https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID || "1285215781363617872"}&permissions=8&scope=bot%20applications.commands)`,
+      inline: true,
+    },
+  );
+
+  return createSparkyEmbed({
+    title: "⚡ God_Sparky • Centre d'Aide & Commandes",
+    description:
+      "Bienvenue sur l'aide de **God_Sparky** !\n" +
+      `Le bot dispose actuellement de **${totalCommands} commandes** prêtes à l'emploi.\n\n` +
+      "🔽 **Utilisez le menu déroulant ci-dessous** pour afficher les détails et sous-commandes de chaque catégorie.",
+    color: COLORS.PRIMARY,
+    fields,
+  });
+}
+
+async function buildCategoryEmbed(cat, commands, interaction, resolvedLocale) {
+  const fields = [];
+
+  for (const cmd of commands) {
+    const json = cmd.data.toJSON ? cmd.data.toJSON() : cmd.data;
+    const desc = await getCommandDescriptionForLocale(cmd, interaction, resolvedLocale);
+
+    const subcommands = (json.options || []).filter((opt) => opt.type === 1);
+    let details = desc || "*(Aucune description)*";
+
+    if (subcommands.length > 0) {
+      const subList = subcommands.map((s) => `\`${s.name}\``).join(", ");
+      details += `\n> ↳ **Sous-commandes :** ${subList}`;
+    }
+
+    fields.push({
+      name: `/${json.name}`,
+      value: details,
+      inline: false,
+    });
+  }
+
+  if (fields.length === 0) {
+    fields.push({
+      name: "Aucune commande",
+      value: "Aucune commande n'est disponible dans cette catégorie pour le moment.",
+      inline: false,
+    });
+  }
+
+  return createSparkyEmbed({
+    title: `${cat.emoji} ${cat.name} • Commandes`,
+    description:
+      `${cat.desc}\n\n` +
+      "*Tapez `/` suivi du nom de la commande pour l'exécuter sur Discord.*",
+    color: cat.color,
+    fields,
+  });
+}
+
 module.exports = {
+  category: "General",
   data: new SlashCommandBuilder()
     .setName("help")
-    .setDescription("Affiche la liste des commandes")
+    .setDescription("Affiche le centre d'aide interactif et la liste des commandes")
     .setDescriptionLocalizations({
-      fr: "Affiche la liste des commandes",
-      "en-US": "Show the list of bot commands",
+      fr: "Affiche le centre d'aide interactif et la liste des commandes",
+      "en-US": "Display the interactive help center and command list",
+      "es-ES": "Muestra el centro de ayuda interactivo y la lista de comandos",
     }),
 
   async execute(interaction) {
     try {
-      const commands = interaction.client.commands;
-
-      // IMPORTANT: on utilise la langue DB (via getGuildLocale), pas interaction.locale.
+      const commands = interaction.client.commands || new Map();
       const resolvedLocale = await getGuildLocale({
         guildId: interaction.guildId,
         interaction,
       });
 
-      if (process.env.DEBUG_I18N === "1") {
-        logger.info(`[help] resolvedLocale=${resolvedLocale} interaction.locale=${interaction.locale} guild.preferred=${interaction.guild?.preferredLocale}`);
-      }
-
-      // Grouper les commandes par catégorie propre
-      const groups = new Map();
+      // Grouper les commandes par catégorie
+      const groupedCommands = {};
+      const categoryCounts = {};
+      CATEGORIES.forEach((cat) => {
+        groupedCommands[cat.id] = [];
+        categoryCounts[cat.id] = 0;
+      });
 
       commands.forEach((command) => {
-        const rawCat = command.category || "Utiles";
-        const meta = CATEGORY_META[rawCat] || { label: `📂 ${rawCat}`, order: 99 };
-        const label = meta.label;
+        const rawCat = (command.category || "General").toLowerCase();
+        const category =
+          CATEGORIES.find((c) => c.match.includes(rawCat)) ||
+          CATEGORIES[CATEGORIES.length - 1];
 
-        if (!groups.has(label)) {
-          groups.set(label, { label, order: meta.order, commands: [] });
-        }
-        groups.get(label).commands.push(command);
+        groupedCommands[category.id].push(command);
+        categoryCounts[category.id]++;
       });
 
-      // Trier les catégories selon l'ordre logique
-      const sortedGroups = Array.from(groups.values()).sort((a, b) => a.order - b.order);
+      // Trier les commandes par ordre alphabétique dans chaque catégorie
+      CATEGORIES.forEach((cat) => {
+        groupedCommands[cat.id].sort((a, b) =>
+          a.data.name.localeCompare(b.data.name),
+        );
+      });
 
-      const fields = [];
-      for (const group of sortedGroups) {
-        group.commands.sort((a, b) => a.data.name.localeCompare(b.data.name));
+      const totalCommands = commands.size;
+      const homeEmbed = buildHomeEmbed(categoryCounts, totalCommands);
+      const row = buildSelectMenu("home");
 
-        const cmds = await Promise.all(
-          group.commands.map(async (cmd) => {
-            const desc = await getCommandDescriptionForLocale(
-              cmd,
-              interaction,
-              resolvedLocale,
-            );
-            return `\`/${cmd.data.name}\` — ${desc || ""}`;
-          }),
+      const response = await interaction.reply({
+        embeds: [homeEmbed],
+        components: [row],
+        ephemeral: true,
+      });
+
+      // Collecteur pour le menu déroulant interactif
+      const collector = response.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 120_000,
+      });
+
+      collector.on("collect", async (selectInteraction) => {
+        if (selectInteraction.user.id !== interaction.user.id) {
+          return selectInteraction.reply({
+            content: "Vous ne pouvez pas interagir avec ce menu d'aide.",
+            ephemeral: true,
+          });
+        }
+
+        const selectedValue = selectInteraction.values[0];
+
+        if (selectedValue === "home") {
+          return selectInteraction.update({
+            embeds: [homeEmbed],
+            components: [buildSelectMenu("home")],
+          });
+        }
+
+        const targetCat = CATEGORIES.find((c) => c.id === selectedValue);
+        if (!targetCat) {
+          return selectInteraction.update({
+            embeds: [homeEmbed],
+            components: [buildSelectMenu("home")],
+          });
+        }
+
+        const catCommands = groupedCommands[targetCat.id] || [];
+        const catEmbed = await buildCategoryEmbed(
+          targetCat,
+          catCommands,
+          interaction,
+          resolvedLocale,
         );
 
-        fields.push({
-          name: group.label,
-          value: cmds.join("\n") || "*(Aucune commande)*",
-          inline: false,
+        return selectInteraction.update({
+          embeds: [catEmbed],
+          components: [buildSelectMenu(targetCat.id)],
         });
-      }
-
-      fields.push(
-        {
-          name: "🌐 Dashboard Web",
-          value: "[sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)",
-          inline: true,
-        },
-        {
-          name: "🔗 Invitation",
-          value: `[Inviter Sparcky](https://discord.com/oauth2/authorize?client_id=${process.env.CLIENT_ID || interaction.client.user.id}&permissions=8&scope=bot%20applications.commands)`,
-          inline: true,
-        },
-      );
-
-      const helpEmbed = createSparkyEmbed({
-        title: "⚡ God_Sparky • Centre d'Aide & Commandes",
-        description:
-          "Bienvenue sur l'aide de **God_Sparky** ! Tapez une commande commençant par `/` dans le chat pour l'utiliser.\n\n" +
-          "💡 *Astuce : Utilisez `/security status` ou `/setup status` pour configurer le serveur.*",
-        color: COLORS.PRIMARY,
-        fields,
       });
 
-      await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+      collector.on("end", async () => {
+        try {
+          const disabledMenu = StringSelectMenuBuilder.from(
+            buildSelectMenu("home").components[0],
+          ).setDisabled(true);
+          const disabledRow = new ActionRowBuilder().addComponents(disabledMenu);
+          await interaction.editReply({ components: [disabledRow] }).catch(() => {});
+        } catch {
+          // Ignorer si le message éphémère a expiré
+        }
+      });
     } catch (error) {
       logger.error(`Erreur lors de l'exécution de la commande help: ${error}`);
       await interaction.reply({
-        content: await interaction.t("ERRORS.COMMAND_FAILED"),
+        content: await interaction.t?.("ERRORS.COMMAND_FAILED") || "Une erreur est survenue.",
         ephemeral: true,
-      });
+      }).catch(() => {});
     }
   },
 };
