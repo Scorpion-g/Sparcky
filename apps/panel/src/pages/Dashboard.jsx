@@ -1,346 +1,155 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
 
-const API_BASE_URL = ""
-
-const DISCORD_PERM_ADMINISTRATOR = 1n << 3n
-
-function isAdminGuild(guild) {
-  // Discord renvoie `permissions` (string) quand on appelle /users/@me/guilds
-  // https://discord.com/developers/docs/resources/user#get-current-user-guilds
-  try {
-    const perms = BigInt(guild?.permissions ?? "0")
-    return (perms & DISCORD_PERM_ADMINISTRATOR) === DISCORD_PERM_ADMINISTRATOR
-  } catch {
-    return false
-  }
-}
-function isBotInGuild(guild) {
-  // Le backend peut exposer des infos spécifiques au bot :
-  // - botPermissions (string BigInt Discord)
-  // - botInGuild (boolean)
-  if (typeof guild?.botInGuild === "boolean") return guild.botInGuild
-
-  try {
-    const botPerms = guild?.botPermissions
-    if (botPerms != null) {
-      const perms = BigInt(botPerms)
-      return perms !== 0n
-    }
-  } catch {
-    // ignore
-  }
-
-  // fallback (ancien comportement)
-  try {
-    const perms = BigInt(guild?.permissions ?? "0")
-    return perms !== 0n
-  } catch {
-    return false
-  }
-}
-
-function Avatar({ user, size = 40 }) {
-  const initials = useMemo(() => {
-    const name = user?.username || user?.name || "?"
-    return name.slice(0, 2).toUpperCase()
-  }, [user])
-
-  const src = user?.avatarUrl
-
-  return (
-    <div
-      className="relative overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10"
-      style={{ height: size, width: size }}
-    >
-      {src ? (
-        <img src={src} alt={user?.username ?? "Avatar"} className="h-full w-full object-cover" />
-      ) : (
-        <div className="grid h-full w-full place-items-center text-xs font-semibold text-slate-200">
-          {initials}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function StatCard({ label, value, hint }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs font-medium text-slate-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-100">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-400">{hint}</p> : null}
-    </div>
-  )
-}
-
-function BotCard({ bot }) {
-  return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium text-slate-400">Bot</p>
-          <p className="mt-2 text-lg font-semibold tracking-tight text-slate-100">{bot?.username ?? "—"}</p>
-          <p className="mt-1 text-xs text-slate-400">ID: {bot?.id ?? "—"}</p>
-        </div>
-        {bot ? <Avatar user={{ username: bot.username, avatarUrl: bot.avatarUrl }} size={44} /> : null}
-      </div>
-    </div>
-  )
-}
-
-function GuildRow({ guild }) {
-  const initial = (guild?.name || "?").slice(0, 1).toUpperCase()
-  const admin = isAdminGuild(guild)
-  const botPresent = isBotInGuild(guild)
-  return (
-    <Link
-      to={`/guild/${guild.id}`}
-      className="block rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 transition hover:bg-slate-950/55 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          {guild?.iconUrl ? (
-            <img
-              src={guild.iconUrl}
-              alt={`Icône ${guild.name}`}
-              className="h-9 w-9 shrink-0 rounded-2xl object-cover ring-1 ring-white/10"
-              loading="lazy"
-            />
-          ) : (
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-indigo-600/20 text-sm font-semibold text-indigo-200 ring-1 ring-indigo-400/20">
-              {initial}
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-100">{guild.name}</p>
-            <p className="truncate text-xs text-slate-400">ID: {guild.id}</p>
-          </div>
-        </div>
-
-        {admin ? (
-          <span className="shrink-0 rounded-full bg-rose-500/15 px-2 py-1 text-[11px] font-semibold text-rose-200 ring-1 ring-rose-500/30">
-            Admin
-          </span>
-        ) : (
-          <span className="shrink-0 rounded-full bg-white/5 px-2 py-1 text-[11px] text-slate-300 ring-1 ring-white/10">
-            Membre
-          </span>
-        )}
-            {botPresent ? (
-                <span className="shrink-0 rounded-full bg-indigo-500/10 px-2 py-1 text-[11px] font-semibold text-indigo-200 ring-1 ring-indigo-500/30">
-                    Bot présent
-                </span>
-            ) : (
-                <span className="shrink-0 rounded-full bg-white/5 px-2 py-1 text-[11px] text-slate-300 ring-1 ring-white/10">
-                    Bot absent
-                </span>
-            )}
-      </div>
-    </Link>
-  )
-}
-
 export default function Dashboard() {
   const navigate = useNavigate()
+  const token = useMemo(() => getJwt(), [])
 
   const [status, setStatus] = useState("loading") // loading | ready | error
   const [error, setError] = useState(null)
-  const [user, setUser] = useState(null)
-  const [bot, setBot] = useState(null)
-  const [guilds, setGuilds] = useState([])
-
-  const [refreshCooldownUntil, setRefreshCooldownUntil] = useState(0)
-  const retryTimeoutRef = useRef(null)
-
-  // Recherche / tri / pagination
+  const [data, setData] = useState(null)
   const [search, setSearch] = useState("")
-  const [sortKey, setSortKey] = useState("name") // name | id
-  const [sortDir, setSortDir] = useState("asc") // asc | desc
-  const [pageSize, setPageSize] = useState(10)
-  const [page, setPage] = useState(1)
-
-  const [adminOnly, setAdminOnly] = useState(false)
-  const [botPresent,setBotPresent] = useState(false)
-  const token = useMemo(() => getJwt(), [])
+  const [activeTab, setActiveTab] = useState("admin") // "admin" | "with_bot" | "to_invite" | "all"
 
   function logout() {
     clearJwt()
     navigate("/login", { replace: true })
   }
 
-  async function load({ reason = "auto" } = {}) {
-    setStatus("loading")
-    setError(null)
+  useEffect(() => {
+    let cancelled = false
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/me`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+    async function load() {
+      setStatus("loading")
+      setError(null)
 
-      if (res.status === 401) {
-        clearJwt()
-        navigate("/login", { replace: true })
-        return
-      }
+      try {
+        const res = await fetch("/api/me", {
+          headers: { Authorization: `Bearer ${token}` }
+        })
 
-      if (!res.ok) {
-        const contentType = res.headers.get("content-type") || ""
-        const isJson = contentType.includes("application/json")
-
-        const payload = isJson ? await res.json().catch(() => null) : null
-        const detailsText = isJson ? (payload?.error || payload?.message || JSON.stringify(payload)) : await res.text().catch(() => "")
-        const retryAfter = isJson ? (payload?.retry_after ?? null) : null
-
-        const trimmed = detailsText ? String(detailsText).slice(0, 200) : ""
-
-        if (res.status === 429) {
-          const retryMs = typeof retryAfter === "number" ? Math.max(250, Math.ceil(retryAfter * 1000)) : 1000
-          const until = Date.now() + retryMs
-          setRefreshCooldownUntil(until)
-
-          const wait = typeof retryAfter === "number" ? `${retryAfter.toFixed(1)}s` : "un court instant"
-          setError(`Rate limit Discord — réessaie dans ${wait}.`)
-          setStatus("error")
-
-          if (reason !== "auto") {
-            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
-            retryTimeoutRef.current = setTimeout(() => {
-              load({ reason: "auto" })
-            }, retryMs)
-          }
-
+        if (res.status === 401) {
+          logout()
           return
         }
 
-        setError(trimmed ? `Erreur API (${res.status}) — ${trimmed}` : `Erreur API (${res.status})`)
+        const payload = await res.json()
+        if (cancelled) return
+
+        if (!res.ok) {
+          throw new Error(payload?.error || "Erreur lors du chargement")
+        }
+
+        setData(payload)
+        setStatus("ready")
+      } catch (err) {
+        if (cancelled) return
+        setError(err?.message || "Impossible de contacter l'API")
         setStatus("error")
-        return
       }
-
-      const data = await res.json()
-
-      setUser(data.user)
-      setBot(data.bot ?? null)
-      setGuilds(Array.isArray(data.guilds) ? data.guilds : [])
-      setStatus("ready")
-    } catch (e) {
-      setError(e?.message || "Erreur inconnue")
-      setStatus("error")
     }
-  }
 
-  useEffect(() => {
     if (!token) {
       logout()
       return
     }
 
-    load({ reason: "auto" })
-
+    load()
     return () => {
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
+      cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [token])
 
-  const refreshDisabled = refreshCooldownUntil && Date.now() < refreshCooldownUntil
+  const user = data?.user
+  const bot = data?.bot
+  const allGuilds = data?.guilds || []
 
-  const adminCount = useMemo(() => guilds.filter(isAdminGuild).length, [guilds])
-  const botCount = useMemo(() => guilds.filter(isBotInGuild).length, [guilds])
-  const filteredSortedGuilds = useMemo(() => {
-    const q = search.trim().toLowerCase()
-
-    let items = guilds
-
-    if (adminOnly) {
-      items = items.filter(isAdminGuild)
-    }
-    if (botPresent) {
-      items = items.filter(isBotInGuild)
-    }
-
-    if (q) {
-      items = items.filter(g => {
-        const name = String(g?.name ?? "").toLowerCase()
-        const id = String(g?.id ?? "")
-        return name.includes(q) || id.includes(q)
-      })
-    }
-
-    const dir = sortDir === "asc" ? 1 : -1
-    items = [...items].sort((a, b) => {
-      if (sortKey === "id") {
-        const av = String(a?.id ?? "")
-        const bv = String(b?.id ?? "")
-        return av.localeCompare(bv) * dir
+  // Filtrage selon onglet et recherche
+  const filteredGuilds = useMemo(() => {
+    return allGuilds.filter(guild => {
+      // Filtre de recherche par nom ou ID
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const matchesName = (guild.name || "").toLowerCase().includes(q)
+        const matchesId = (guild.id || "").includes(q)
+        if (!matchesName && !matchesId) return false
       }
 
-      const av = String(a?.name ?? "").toLowerCase()
-      const bv = String(b?.name ?? "").toLowerCase()
-      return av.localeCompare(bv) * dir
+      // Filtre selon l'onglet
+      if (activeTab === "admin") {
+        return guild.isAdmin
+      }
+      if (activeTab === "with_bot") {
+        return guild.botInGuild
+      }
+      if (activeTab === "to_invite") {
+        return guild.isAdmin && !guild.botInGuild
+      }
+      return true // "all"
     })
+  }, [allGuilds, search, activeTab])
 
-    return items
-  }, [guilds, search, sortKey, sortDir, adminOnly, botPresent])
-
-  const totalItems = filteredSortedGuilds.length
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
-
-  const currentPage = Math.min(page, totalPages)
-  const startIndex = (currentPage - 1) * pageSize
-  const pagedGuilds = filteredSortedGuilds.slice(startIndex, startIndex + pageSize)
-
-  useEffect(() => {
-    // si le filtre réduit le nombre de pages, on se remet sur une page valide
-    if (page !== currentPage) setPage(currentPage)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage])
-
-  useEffect(() => {
-    // reset page quand on change filtre/tri/taille
-    setPage(1)
-  }, [search, sortKey, sortDir, pageSize])
-
-  const handleKeyDown = e => {
-    if (e.key === "Enter") {
-      e.preventDefault()
-      load({ reason: "manual" })
-    }
-  }
+  // Statistiques rapides
+  const stats = useMemo(() => {
+    const adminCount = allGuilds.filter(g => g.isAdmin).length
+    const withBotCount = allGuilds.filter(g => g.botInGuild).length
+    const toInviteCount = allGuilds.filter(g => g.isAdmin && !g.botInGuild).length
+    return { adminCount, withBotCount, toInviteCount }
+  }, [allGuilds])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100">
-      <header className="border-b border-white/10 bg-slate-950/40 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      {/* Barre de navigation supérieure */}
+      <header className="border-b border-white/10 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          {/* Bot info (PP du bot + Nom + Status) */}
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-white/5 ring-1 ring-white/10">
-              <span className="text-sm font-semibold text-indigo-200">SP</span>
+            <div className="relative">
+              {bot?.avatarUrl ? (
+                <img
+                  src={bot.avatarUrl}
+                  alt={bot.username}
+                  className="h-11 w-11 rounded-2xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10"
+                />
+              ) : (
+                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-600 text-white font-bold ring-2 ring-white/10">
+                  S
+                </div>
+              )}
+              {/* Badge vert en ligne */}
+              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-emerald-500" />
             </div>
+
             <div>
-              <p className="text-sm font-semibold leading-tight">Panel Sparcky</p>
-              <p className="text-xs text-slate-400">Dashboard</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold text-white leading-none">{bot?.username || "Sparcky"}</h1>
+                <span className="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-500/30">
+                  BOT
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Panneau d'administration</p>
             </div>
           </div>
 
+          {/* User info + Déconnexion */}
           <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                <div className="hidden text-right sm:block">
-                  <p className="text-sm font-semibold leading-tight">{user.username}</p>
-                  <p className="text-xs text-slate-400">ID: {user.id}</p>
-                </div>
-                <Avatar user={user} />
-              </>
-            ) : (
-              <div className="h-10 w-32 animate-pulse rounded-2xl bg-white/5 ring-1 ring-white/10" />
+            {user && (
+              <div className="hidden sm:flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-1.5">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.username} className="h-7 w-7 rounded-xl object-cover" />
+                ) : (
+                  <div className="grid h-7 w-7 place-items-center rounded-xl bg-slate-800 text-xs font-semibold text-slate-200">
+                    {(user.username || "?").slice(0, 1)}
+                  </div>
+                )}
+                <span className="text-sm font-medium text-slate-200">{user.username}</span>
+              </div>
             )}
 
             <button
-              type="button"
               onClick={logout}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
             >
               Déconnexion
             </button>
@@ -348,231 +157,221 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-3">
-          <StatCard
-            label="Statut"
-            value={status === "ready" ? "Connecté" : status === "loading" ? "Chargement" : "Erreur"}
-            hint={status === "error" ? (error ?? "—") : ""}
-          />
-          <StatCard
-            label="Guildes"
-            value={status === "ready" ? guilds.length : "—"}
-            hint={status === "ready" ? `${adminCount} admin` : "Serveurs visibles via l’API"}
-          />
-          <StatCard
-            label="Présence du bot"
-            value={status === "ready" ? botCount : "—"}
-            hint={status === "ready" ? `${botCount} serveurs avec le bot` : "Serveurs visibles via l’API"}
-            />
-          <BotCard bot={bot} />
+      {/* Contenu principal */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
+        {/* Titre & Statistiques */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">Sélectionnez un serveur</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Gérez les fonctionnalités de God_Sparky sur vos serveurs Discord.
+            </p>
+          </div>
+
+          {/* Cartes statistiques */}
+          <div className="flex items-center gap-2 text-xs">
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <span className="text-slate-400">Gérables :</span>{" "}
+              <span className="font-bold text-white">{stats.adminCount}</span>
+            </div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
+              <span className="text-emerald-300">Bot actif :</span>{" "}
+              <span className="font-bold text-emerald-100">{stats.withBotCount}</span>
+            </div>
+          </div>
         </div>
 
-        <section className="mt-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">Tes guildes</h2>
-              <p className="mt-1 text-sm text-slate-300">
-                Recherche, tri et pagination (badges Admin en rouge).
-              </p>
-            </div>
+        {/* Barre de filtres et recherche */}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Onglets de filtres */}
+          <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-slate-900/80 p-1">
+            <button
+              onClick={() => setActiveTab("admin")}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                activeTab === "admin"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Mes serveurs ({stats.adminCount})
+            </button>
+            <button
+              onClick={() => setActiveTab("with_bot")}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                activeTab === "with_bot"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Bot présent ({stats.withBotCount})
+            </button>
+            <button
+              onClick={() => setActiveTab("to_invite")}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                activeTab === "to_invite"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              À inviter ({stats.toInviteCount})
+            </button>
+            <button
+              onClick={() => setActiveTab("all")}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                activeTab === "all"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Tous ({allGuilds.length})
+            </button>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+          {/* Champ de recherche */}
+          <div className="relative w-full sm:w-72">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher un serveur..."
+              className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            />
+            {search && (
               <button
-                type="button"
-                disabled={refreshDisabled}
-                onClick={() => load({ reason: "manual" })}
-                className={`rounded-xl px-3 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/20 transition focus:outline-none focus:ring-2 focus:ring-indigo-300/60 ${
-                  refreshDisabled ? "bg-indigo-600/40 cursor-not-allowed" : "bg-indigo-600 hover:bg-indigo-500"
-                }`}
-                title={refreshDisabled ? "Attends un instant avant de rafraîchir" : "Rafraîchir"}
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-2 text-xs text-slate-400 hover:text-white"
               >
-                Rafraîchir
+                ✕
               </button>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-3xl border border-white/10 bg-white/5 p-4">
-            {/* Barre de contrôles */}
-            {status === "ready" && (
-              <div className="mb-4 grid gap-3 md:grid-cols-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-slate-300">Recherche</label>
-                  <input
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Nom ou ID…"
-                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none ring-0 focus:border-indigo-400/40"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300">Filtre</label>
-                  <button
-                    type="button"
-                    onClick={() => setAdminOnly(v => !v)}
-                    className={`mt-1 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                      adminOnly
-                        ? "border-rose-500/30 bg-rose-500/10 text-rose-100"
-                        : "border-white/10 bg-slate-950/40 text-slate-100 hover:bg-slate-950/55"
-                    }`}
-                    title="Afficher uniquement les serveurs où tu es admin"
-                  >
-                    <span>Admin only</span>
-                    <span className={`text-xs ${adminOnly ? "text-rose-200" : "text-slate-400"}`}>{
-                      adminOnly ? "ON" : "OFF"
-                    }</span>
-                  </button>
-                  <button type="button"
-                    onClick={() => setBotPresent(v => !v)}
-                    className={`mt-2 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm font-semibold transition ${
-                        botPresent ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-100": "border-white/10 bg-slate-950/40 text-slate-100 hover:bg-slate-950/55" 
-                    }`}
-                    title="Afficher uniquement les serveurs où le bot est présent"
-                  >
-                    <span>Bot présent</span>
-                    <span className={`text-xs ${botPresent ? "text-indigo-200" : "text-slate-400"}`}>{
-                      botPresent ? "ON" : "OFF"
-                    }</span>
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300">Trier / Page</label>
-                  <div className="mt-1 flex gap-2">
-                    <select
-                      value={sortKey}
-                      onChange={e => setSortKey(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400/40"
-                    >
-                      <option value="name">Nom</option>
-                      <option value="id">ID</option>
-                    </select>
-                    <select
-                      value={sortDir}
-                      onChange={e => setSortDir(e.target.value)}
-                      className="w-28 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400/40"
-                    >
-                      <option value="asc">Asc</option>
-                      <option value="desc">Desc</option>
-                    </select>
-                    <select
-                      value={pageSize}
-                      onChange={e => setPageSize(Number(e.target.value))}
-                      className="w-24 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-sm text-slate-100 outline-none focus:border-indigo-400/40"
-                      title="Taille de page"
-                    >
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={50}>50</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="md:col-span-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-slate-950/30 px-3 py-2">
-                  <p className="text-xs text-slate-300">
-                    {totalItems} résultat(s) • page {currentPage}/{totalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPage(1)}
-                      disabled={currentPage === 1}
-                      className={`rounded-lg px-2 py-1 text-xs font-semibold ring-1 ring-white/10 ${
-                        currentPage === 1 ? "bg-white/5 text-slate-500" : "bg-white/10 text-slate-100 hover:bg-white/15"
-                      }`}
-                    >
-                      «
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className={`rounded-lg px-2 py-1 text-xs font-semibold ring-1 ring-white/10 ${
-                        currentPage === 1 ? "bg-white/5 text-slate-500" : "bg-white/10 text-slate-100 hover:bg-white/15"
-                      }`}
-                    >
-                      Préc.
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage >= totalPages}
-                      className={`rounded-lg px-2 py-1 text-xs font-semibold ring-1 ring-white/10 ${
-                        currentPage >= totalPages
-                          ? "bg-white/5 text-slate-500"
-                          : "bg-white/10 text-slate-100 hover:bg-white/15"
-                      }`}
-                    >
-                      Suiv.
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPage(totalPages)}
-                      disabled={currentPage >= totalPages}
-                      className={`rounded-lg px-2 py-1 text-xs font-semibold ring-1 ring-white/10 ${
-                        currentPage >= totalPages
-                          ? "bg-white/5 text-slate-500"
-                          : "bg-white/10 text-slate-100 hover:bg-white/15"
-                      }`}
-                    >
-                      »
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {status === "loading" && (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-2xl bg-slate-950/40 ring-1 ring-white/10" />
-                ))}
-              </div>
-            )}
-
-            {status === "error" && (
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">
-                <p className="font-semibold">Impossible de charger tes infos</p>
-                <p className="mt-1 text-rose-100/80">{error}</p>
-                <div className="mt-3 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => load({ reason: "manual" })}
-                    className="rounded-xl bg-rose-500/80 px-3 py-2 text-xs font-semibold text-white transition hover:bg-rose-500"
-                  >
-                    Réessayer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:bg-white/10"
-                  >
-                    Se déconnecter
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {status === "ready" && totalItems === 0 && (
-              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-6 text-sm text-slate-300">
-                Aucun résultat.
-              </div>
-            )}
-
-            {status === "ready" && totalItems > 0 && (
-              <div className="space-y-3">
-                {pagedGuilds.map(guild => (
-                  <GuildRow key={guild.id} guild={guild} />
-                ))}
-              </div>
             )}
           </div>
-        </section>
+        </div>
 
-        <footer className="mt-10 text-center text-xs text-slate-400">Panel UI — Tailwind • React • Vite</footer>
+        {/* État de chargement */}
+        {status === "loading" && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-36 animate-pulse rounded-3xl border border-white/5 bg-slate-900/40 p-5" />
+            ))}
+          </div>
+        )}
+
+        {/* État d'erreur */}
+        {status === "error" && (
+          <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-6 text-center text-sm text-rose-200">
+            <p className="font-semibold text-base">Erreur de chargement</p>
+            <p className="mt-1 text-rose-300/80">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-rose-500 transition"
+            >
+              Recharger la page
+            </button>
+          </div>
+        )}
+
+        {/* Aucun résultat */}
+        {status === "ready" && filteredGuilds.length === 0 && (
+          <div className="rounded-3xl border border-white/10 bg-slate-900/30 py-16 text-center">
+            <p className="text-base font-semibold text-slate-300">Aucun serveur trouvé</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {search ? "Essayez avec d'autres termes de recherche." : "Aucun serveur ne correspond à ce filtre."}
+            </p>
+          </div>
+        )}
+
+        {/* Grille des serveurs (Cards modernes) */}
+        {status === "ready" && filteredGuilds.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredGuilds.map(guild => {
+              const initial = (guild.name || "?").slice(0, 1).toUpperCase()
+
+              return (
+                <div
+                  key={guild.id}
+                  className="group relative flex flex-col justify-between rounded-3xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur transition hover:border-indigo-500/40 hover:bg-slate-900/90 hover:shadow-xl hover:shadow-indigo-500/5"
+                >
+                  {/* Haut de la carte : Icône + Nom + Badges */}
+                  <div>
+                    <div className="flex items-start gap-3.5">
+                      {guild.iconUrl ? (
+                        <img
+                          src={guild.iconUrl}
+                          alt={guild.name}
+                          className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10"
+                        />
+                      ) : (
+                        <div className="grid h-12 w-12 place-items-center rounded-2xl bg-indigo-600/20 text-base font-bold text-indigo-300 ring-1 ring-indigo-500/30">
+                          {initial}
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-base font-semibold text-white group-hover:text-indigo-200 transition">
+                          {guild.name}
+                        </h3>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {guild.owner ? (
+                            <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
+                              Propriétaire
+                            </span>
+                          ) : guild.isAdmin ? (
+                            <span className="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-500/30">
+                              Admin
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 ring-1 ring-white/10">
+                              Membre
+                            </span>
+                          )}
+
+                          {guild.botInGuild ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Présent
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 ring-1 ring-white/10">
+                              Non invité
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Boutons d'action en bas */}
+                  <div className="mt-5 pt-4 border-t border-white/5">
+                    {guild.botInGuild ? (
+                      <Link
+                        to={`/guild/${guild.id}`}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-500 transition"
+                      >
+                        Configurer le bot →
+                      </Link>
+                    ) : guild.isAdmin ? (
+                      <a
+                        href={guild.inviteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/20 hover:text-white transition"
+                      >
+                        + Inviter God_Sparky
+                      </a>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full rounded-2xl border border-white/5 bg-white/5 px-4 py-2.5 text-xs font-medium text-slate-500 cursor-not-allowed"
+                      >
+                        Accès restreint (Admin requis)
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </main>
     </div>
   )
