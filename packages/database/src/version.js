@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.3.0";
+const CURRENT_VERSION = "2.3.2";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,36 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.3.2",
+    date: "10 Novembre 2026",
+    type: "MINOR",
+    githubUrl: getGitHubReleaseUrl("2.3.2"),
+    title: "Mise à Jour v2.3.2 : Refonte Sécurité, Menu Déroulant /help, Commandes Unifiées & Démo Multilingue",
+    summary: "Refonte majeure de l'ergonomie et de la sécurité du bot : nouveau centre d'aide interactif avec menu déroulant par catégories, unification des commandes de configuration (/setup) et de sécurité (/security), purge de messages filtrable (/clear), tolérance intelligente et durées personnalisées sur le Blind Test, et mode Démo interactif multilingue (FR, EN, ES) sur le web.",
+    highlights: [
+      {
+        emoji: "📖",
+        title: "Centre d'Aide Interactif /help",
+        desc: "Menu déroulant par catégories (Sécurité, Modération, Économie, Setup, Fun, Tickets, Général) avec affichage automatique des sous-commandes."
+      },
+      {
+        emoji: "🛡️",
+        title: "Hubs Unifiés /security & /setup",
+        desc: "Gestion centralisée de l'auto-modération et de la configuration du serveur (bienvenue, départs, autorole, vocaux temporaires, langue)."
+      },
+      {
+        emoji: "🎵",
+        title: "Blind Test Deezer Perfectionné",
+        desc: "Validation souple des réponses (tolérance Levenshtein, expressions orales) et choix de la durée de chaque manche (15s à 60s)."
+      },
+      {
+        emoji: "🌐",
+        title: "Sandbox Démo & Panel Multilingue",
+        desc: "Espace interactif public sur sparcky.matteoriviere.fr/demo et traduction intégrale du panel en Français, Anglais et Espagnol."
+      }
+    ]
+  },
   {
     version: "2.3.0",
     date: "10 Novembre 2026",
