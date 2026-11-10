@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
+import { useLanguage, LanguageSelector } from "../lib/i18n"
 
 const API_BASE_URL = ""
 
@@ -57,6 +58,7 @@ function SelectField({ label, description, value, onChange, options, placeholder
 export default function GuildPage() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { t, lang: panelLang, setLang } = useLanguage()
   const token = useMemo(() => getJwt(), [])
 
   const [status, setStatus] = useState("loading") // loading | ready | error
@@ -654,12 +656,13 @@ export default function GuildPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <LanguageSelector />
             <button
               type="button"
               onClick={logout}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-rose-300"
             >
-              Déconnexion
+              {t("common.logout")}
             </button>
           </div>
         </div>
@@ -757,15 +760,15 @@ export default function GuildPage() {
             {botInGuild && (
               <>
                 <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
-                  <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label="Salons & Rôles" />
-                  <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label="Sécurité" />
-                  <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? "Économie (Off)" : "Économie & Shop"} />
-                  <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? "Niveaux (Off)" : "Niveaux & XP"} />
-                  <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label="Tickets" />
-                  <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label="Embed Builder" />
-                  <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label="Sanctions Web" />
-                  <TabButton active={activeTab === "words"} onClick={() => setActiveTab("words")} icon="🚫" label={`Mots Interdits (${config?.badWords?.length || 0})`} />
-                  <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon="⚙️" label="Général" />
+                  <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label={t("tabs.channels")} />
+                  <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
+                  <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
+                  <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")} />
+                  <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label={t("tabs.tickets")} />
+                  <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label={t("tabs.embeds")} />
+                  <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label={t("tabs.warns")} />
+                  <TabButton active={activeTab === "words"} onClick={() => setActiveTab("words")} icon="🚫" label={`${t("tabs.words")} (${config?.badWords?.length || 0})`} />
+                  <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon="⚙️" label={t("tabs.settings")} />
                 </div>
 
                 {/* Section 1 : Salons & Rôles */}
@@ -1916,9 +1919,9 @@ export default function GuildPage() {
                 {/* Section 9 : Langue & Général */}
                 {activeTab === "settings" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                    <h2 className="text-lg font-bold text-white">Langue et Préférences</h2>
+                    <h2 className="text-lg font-bold text-white">{t("gen.title")}</h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      Définissez la langue dans laquelle God_Sparky répond aux commandes et envoie ses notifications.
+                      {t("gen.desc")}
                     </p>
 
                     <div className="mt-6 grid max-w-xl gap-3">
@@ -1932,7 +1935,10 @@ export default function GuildPage() {
                           <button
                             key={lang.code}
                             type="button"
-                            onClick={() => updateField("language", lang.code)}
+                            onClick={() => {
+                              updateField("language", lang.code)
+                              setLang(lang.code)
+                            }}
                             className={`flex items-center justify-between rounded-2xl border p-4 text-left transition ${
                               isSelected
                                 ? "border-indigo-500/60 bg-indigo-600/10 text-white"

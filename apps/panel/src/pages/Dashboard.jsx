@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
+import { useLanguage, LanguageSelector } from "../lib/i18n"
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const token = useMemo(() => getJwt(), [])
 
   const [status, setStatus] = useState("loading") // loading | ready | error
@@ -132,8 +134,10 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* User info + Déconnexion */}
+          {/* User info + Langue + Déconnexion */}
           <div className="flex items-center gap-3">
+            <LanguageSelector />
+
             {user && (
               <div className="hidden sm:flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-1.5">
                 {user.avatarUrl ? (
@@ -151,7 +155,7 @@ export default function Dashboard() {
               onClick={logout}
               className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
             >
-              Déconnexion
+              {t("common.logout")}
             </button>
           </div>
         </div>
@@ -162,20 +166,20 @@ export default function Dashboard() {
         {/* Titre & Statistiques */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">Sélectionnez un serveur</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-white">{t("dash.title")}</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Gérez les fonctionnalités de God_Sparky sur vos serveurs Discord.
+              {t("dash.subtitle")}
             </p>
           </div>
 
           {/* Cartes statistiques */}
           <div className="flex items-center gap-2 text-xs">
             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
-              <span className="text-slate-400">Gérables :</span>{" "}
+              <span className="text-slate-400">{t("dash.tabAdmin")} :</span>{" "}
               <span className="font-bold text-white">{stats.adminCount}</span>
             </div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2">
-              <span className="text-emerald-300">Bot actif :</span>{" "}
+              <span className="text-emerald-300">{t("dash.tabWithBot")} :</span>{" "}
               <span className="font-bold text-emerald-100">{stats.withBotCount}</span>
             </div>
           </div>
@@ -193,7 +197,7 @@ export default function Dashboard() {
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Mes serveurs ({stats.adminCount})
+              {t("dash.tabAdmin")} ({stats.adminCount})
             </button>
             <button
               onClick={() => setActiveTab("with_bot")}
@@ -203,7 +207,7 @@ export default function Dashboard() {
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Bot présent ({stats.withBotCount})
+              {t("dash.tabWithBot")} ({stats.withBotCount})
             </button>
             <button
               onClick={() => setActiveTab("to_invite")}
@@ -213,7 +217,7 @@ export default function Dashboard() {
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              À inviter ({stats.toInviteCount})
+              {t("dash.tabToInvite")} ({stats.toInviteCount})
             </button>
             <button
               onClick={() => setActiveTab("all")}
@@ -223,7 +227,7 @@ export default function Dashboard() {
                   : "text-slate-400 hover:text-slate-200"
               }`}
             >
-              Tous ({allGuilds.length})
+              {t("dash.tabAll")} ({allGuilds.length})
             </button>
           </div>
 
@@ -233,7 +237,7 @@ export default function Dashboard() {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher un serveur..."
+              placeholder={t("dash.searchPlaceholder")}
               className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-2 text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
             {search && (
@@ -259,13 +263,13 @@ export default function Dashboard() {
         {/* État d'erreur */}
         {status === "error" && (
           <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-6 text-center text-sm text-rose-200">
-            <p className="font-semibold text-base">Erreur de chargement</p>
+            <p className="font-semibold text-base">{t("common.error")}</p>
             <p className="mt-1 text-rose-300/80">{error}</p>
             <button
               onClick={() => window.location.reload()}
               className="mt-4 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-rose-500 transition"
             >
-              Recharger la page
+              {t("common.refresh")}
             </button>
           </div>
         )}
@@ -273,10 +277,7 @@ export default function Dashboard() {
         {/* Aucun résultat */}
         {status === "ready" && filteredGuilds.length === 0 && (
           <div className="rounded-3xl border border-white/10 bg-slate-900/30 py-16 text-center">
-            <p className="text-base font-semibold text-slate-300">Aucun serveur trouvé</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {search ? "Essayez avec d'autres termes de recherche." : "Aucun serveur ne correspond à ce filtre."}
-            </p>
+            <p className="text-base font-semibold text-slate-300">{t("dash.noServer")}</p>
           </div>
         )}
 
@@ -313,26 +314,26 @@ export default function Dashboard() {
                         <div className="mt-1 flex flex-wrap items-center gap-1.5">
                           {guild.owner ? (
                             <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-500/30">
-                              Propriétaire
+                              {t("dash.roleOwner")}
                             </span>
                           ) : guild.isAdmin ? (
                             <span className="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-500/30">
-                              Admin
+                              {t("dash.roleAdmin")}
                             </span>
                           ) : (
                             <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 ring-1 ring-white/10">
-                              Membre
+                              {t("dash.roleMember")}
                             </span>
                           )}
 
                           {guild.botInGuild ? (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
                               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              Présent
+                              {t("dash.statusPresent")}
                             </span>
                           ) : (
                             <span className="rounded-md bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 ring-1 ring-white/10">
-                              Non invité
+                              {t("dash.statusNotInvited")}
                             </span>
                           )}
                         </div>
@@ -347,7 +348,7 @@ export default function Dashboard() {
                         to={`/guild/${guild.id}`}
                         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-500 transition"
                       >
-                        Configurer le bot →
+                        {t("dash.btnConfigure")}
                       </Link>
                     ) : guild.isAdmin ? (
                       <a
@@ -356,7 +357,7 @@ export default function Dashboard() {
                         rel="noreferrer"
                         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-2.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-500/20 hover:text-white transition"
                       >
-                        + Inviter God_Sparky
+                        {t("dash.btnInvite")}
                       </a>
                     ) : (
                       <button
@@ -373,6 +374,18 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Footer avec liens légaux pour la vérification Discord */}
+      <footer className="border-t border-white/10 bg-slate-900/40 py-6 mt-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          <p>© 2026 God_Sparky. Tous droits réservés.</p>
+          <div className="flex items-center gap-4">
+            <Link to="/terms" className="hover:text-slate-300 transition">Conditions d'Utilisation (Terms)</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:text-slate-300 transition">Politique de Confidentialité (Privacy)</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
