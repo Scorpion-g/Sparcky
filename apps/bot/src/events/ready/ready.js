@@ -24,6 +24,17 @@ module.exports = {
     await registerCommands.execute(client);
     logger.info('✅ Synchronisation des commandes terminée.');
 
+    // Vérification et clôture automatique des giveaways arrivés à expiration
+    const { checkActiveGiveaways } = require('../../utils/giveawayUtils');
+    checkActiveGiveaways(client).catch((err) => {
+      logger.error(`Erreur checkActiveGiveaways initial: ${err?.message}`);
+    });
+    setInterval(() => {
+      checkActiveGiveaways(client).catch((err) => {
+        logger.error(`Erreur interval checkActiveGiveaways: ${err?.message}`);
+      });
+    }, 15000);
+
     // Diffusion automatique des mises à jour majeures si activé
     if (process.env.AUTO_BROADCAST_UPDATES === "true") {
       setTimeout(async () => {

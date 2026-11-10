@@ -1,6 +1,12 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 const Giveaway = require("../../models/Giveaway");
 const logger = require("../../utils/logger");
+const {
+  buildGiveawayEmbed,
+  buildGiveawayButton,
+  finishGiveaway,
+  rerollGiveaway
+} = require("../../utils/giveawayUtils");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -9,6 +15,7 @@ module.exports = {
     .setDescriptionLocalizations({
       fr: "Gérer les giveaways",
       "en-US": "Manage giveaways",
+      es: "Administrar sorteos",
     })
     .addSubcommand((sub) =>
       sub
@@ -17,6 +24,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Démarrer un giveaway",
           "en-US": "Start a giveaway",
+          es: "Iniciar un sorteo",
         })
         .addStringOption((opt) =>
           opt
@@ -25,6 +33,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Prix du giveaway",
               "en-US": "Giveaway prize",
+              es: "Premio del sorteo",
             })
             .setRequired(true),
         )
@@ -35,6 +44,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Durée du giveaway en minutes",
               "en-US": "Giveaway duration in minutes",
+              es: "Duración en minutos",
             })
             .setRequired(true),
         )
@@ -45,6 +55,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Nombre de gagnants",
               "en-US": "Number of winners",
+              es: "Número de ganadores",
             })
             .setRequired(true),
         )
@@ -55,6 +66,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Canal pour le giveaway",
               "en-US": "Channel for the giveaway",
+              es: "Canal para el sorteo",
             })
             .setRequired(true),
         ),
@@ -66,6 +78,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Terminer un giveaway",
           "en-US": "End a giveaway",
+          es: "Finalizar un sorteo",
         })
         .addStringOption((opt) =>
           opt
@@ -74,6 +87,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "ID du giveaway à terminer",
               "en-US": "Giveaway ID to end",
+              es: "ID del sorteo a finalizar",
             })
             .setRequired(true),
         ),
@@ -85,6 +99,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Relancer un giveaway",
           "en-US": "Reroll a giveaway",
+          es: "Volver a sortear",
         })
         .addStringOption((opt) =>
           opt
@@ -93,6 +108,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "ID du giveaway à relancer",
               "en-US": "Giveaway ID to reroll",
+              es: "ID del sorteo a relanzar",
             })
             .setRequired(true),
         ),
@@ -115,7 +131,7 @@ module.exports = {
         });
       }
 
-      const endTime = Date.now() + duration * 60000;
+      const endTime = new Date(Date.now() + duration * 60000);
 
       const giveaway = new Giveaway({
         guildId: interaction.guild.id,
@@ -124,41 +140,26 @@ module.exports = {
         endTime,
         winnersCount,
         participants: [],
+        winners: [],
+        hostedBy: interaction.user.id,
         isEnded: false,
       });
 
       await giveaway.save();
 
-      const embed = new EmbedBuilder()
-        .setTitle(await interaction.t("ECONOMY.GIVEAWAY.START.EMBED.TITLE"))
-        .setDescription(
-          await interaction.t("ECONOMY.GIVEAWAY.START.EMBED.DESCRIPTION", {
-            prize,
-            duration,
-            winnersCount,
-          }),
-        )
-        .setFooter({
-          text: await interaction.t("ECONOMY.GIVEAWAY.START.EMBED.FOOTER", {
-            id: giveaway._id.toString(),
-          }),
-        })
-        .setColor("#00ff00")
-        .setTimestamp();
+      const embed = buildGiveawayEmbed(giveaway, false);
+      const row = buildGiveawayButton(giveaway, false);
 
-      const giveawayMessage = await channel.send({ embeds: [embed] });
-      await giveawayMessage.react("🎉");
-
+      const giveawayMessage = await channel.send({ embeds: [embed], components: [row] });
       giveaway.messageId = giveawayMessage.id;
       await giveaway.save();
 
-      await interaction.reply({
+      return interaction.reply({
         content: await interaction.t("ECONOMY.GIVEAWAY.START.SUCCESS", {
           channel: `${channel}`,
         }),
         ephemeral: true,
       });
-      return;
     }
 
     if (subcommand === "end") {
@@ -182,65 +183,11 @@ module.exports = {
         });
       }
 
-      giveaway.isEnded = true;
-      await giveaway.save();
-
-      const channel = interaction.guild.channels.cache.get(giveaway.channelId);
-      if (!channel) {
-        return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.CHANNEL_MISSING"),
-          ephemeral: true,
-        });
-      }
-
-      const giveawayMessage = await channel.messages
-        .fetch(giveaway.messageId)
-        .catch(() => null);
-      if (!giveawayMessage) {
-        return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.MESSAGE_MISSING"),
-          ephemeral: true,
-        });
-      }
-
-      const participants = [...giveaway.participants];
-      if (participants.length === 0) {
-        const embed = new EmbedBuilder()
-          .setTitle(await interaction.t("ECONOMY.GIVEAWAY.END.EMBED.TITLE"))
-          .setDescription(
-            await interaction.t("ECONOMY.GIVEAWAY.END.EMBED.NO_PARTICIPANTS", {
-              prize: giveaway.prize,
-            }),
-          )
-          .setColor("#ff0000")
-          .setTimestamp();
-        await giveawayMessage.edit({ embeds: [embed] });
-
-        return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.END.NO_PARTICIPANTS"),
-          ephemeral: true,
-        });
-      }
-
-      const winners = [];
-      while (winners.length < giveaway.winnersCount && participants.length > 0) {
-        const randomIndex = Math.floor(Math.random() * participants.length);
-        winners.push(participants.splice(randomIndex, 1)[0]);
-      }
-
-      const winnersMentions = winners.map((w) => `<@${w}>`).join(", ");
-
-      const embed = new EmbedBuilder()
-        .setTitle(await interaction.t("ECONOMY.GIVEAWAY.END.EMBED.TITLE"))
-        .setDescription(
-          await interaction.t("ECONOMY.GIVEAWAY.END.EMBED.WINNERS", {
-            prize: giveaway.prize,
-            winners: winnersMentions,
-          }),
-        )
-        .setColor("#00ff00")
-        .setTimestamp();
-      await giveawayMessage.edit({ embeds: [embed] });
+      const finished = await finishGiveaway(interaction.client, giveaway);
+      const winnersMentions =
+        finished?.winners?.length > 0
+          ? finished.winners.map((id) => `<@${id}>`).join(", ")
+          : "*Aucun gagnant*";
 
       return interaction.reply({
         content: await interaction.t("ECONOMY.GIVEAWAY.END.SUCCESS", {
@@ -271,51 +218,18 @@ module.exports = {
         });
       }
 
-      const channel = interaction.guild.channels.cache.get(giveaway.channelId);
-      if (!channel) {
+      const result = await rerollGiveaway(interaction.client, giveaway);
+      if (!result.success) {
         return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.CHANNEL_MISSING"),
+          content:
+            result.reason === "NO_PARTICIPANTS"
+              ? await interaction.t("ECONOMY.GIVEAWAY.REROLL.NO_PARTICIPANTS")
+              : "Impossible d'effectuer le reroll pour ce giveaway.",
           ephemeral: true,
         });
       }
 
-      const giveawayMessage = await channel.messages
-        .fetch(giveaway.messageId)
-        .catch(() => null);
-      if (!giveawayMessage) {
-        return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.MESSAGE_MISSING"),
-          ephemeral: true,
-        });
-      }
-
-      const participants = [...giveaway.participants];
-      if (participants.length === 0) {
-        return interaction.reply({
-          content: await interaction.t("ECONOMY.GIVEAWAY.REROLL.NO_PARTICIPANTS"),
-          ephemeral: true,
-        });
-      }
-
-      const winners = [];
-      while (winners.length < giveaway.winnersCount && participants.length > 0) {
-        const randomIndex = Math.floor(Math.random() * participants.length);
-        winners.push(participants.splice(randomIndex, 1)[0]);
-      }
-
-      const winnersMentions = winners.map((w) => `<@${w}>`).join(", ");
-
-      const embed = new EmbedBuilder()
-        .setTitle(await interaction.t("ECONOMY.GIVEAWAY.REROLL.EMBED.TITLE"))
-        .setDescription(
-          await interaction.t("ECONOMY.GIVEAWAY.REROLL.EMBED.DESCRIPTION", {
-            prize: giveaway.prize,
-            winners: winnersMentions,
-          }),
-        )
-        .setColor("#00ff00")
-        .setTimestamp();
-      await giveawayMessage.edit({ embeds: [embed] });
+      const winnersMentions = result.winners.map((w) => `<@${w}>`).join(", ");
 
       return interaction.reply({
         content: await interaction.t("ECONOMY.GIVEAWAY.REROLL.SUCCESS", {

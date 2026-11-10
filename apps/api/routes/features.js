@@ -1,4 +1,5 @@
 import express from "express"
+import { ObjectId } from "mongodb"
 import { authenticate } from "../middlewares/auth.js"
 import { getDb } from "../lib/mongo.js"
 import { CURRENT_VERSION, getChangelog, GITHUB_REPO, getGitHubReleaseUrl } from "@sparcky/database"
@@ -289,6 +290,339 @@ router.post("/guilds/:guildId/moderation/warns/:userId/revoke", authenticate, as
   } catch (err) {
     console.error("POST /api/guilds/:guildId/moderation/warns/:userId/revoke error:", err)
     return res.status(500).json({ error: "Impossible de révoquer l'avertissement" })
+  }
+})
+
+// ==========================================
+// MODULE 5.5 : GESTION DES GIVEAWAYS
+// ==========================================
+
+// 1. Lister les giveaways d'une guilde
+router.get("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  try {
+    const db = await getDb()
+    const giveaways = await db
+      .collection("Giveaways")
+      .find({ guildId })
+      .sort({ createdAt: -1 })
+      .toArray()
+
+    const formatted = giveaways.map((g) => ({
+      id: g._id.toString(),
+      prize: g.prize,
+      channelId: g.channelId,
+      messageId: g.messageId,
+      endTime: g.endTime,
+      winnersCount: g.winnersCount || 1,
+      participantsCount: Array.isArray(g.participants) ? g.participants.length : 0,
+      participants: g.participants || [],
+      winners: g.winners || [],
+      hostedBy: g.hostedBy || null,
+      isEnded: !!g.isEnded,
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt
+    }))
+
+    return res.json({ giveaways: formatted })
+  } catch (err) {
+    console.error("GET /api/guilds/:guildId/giveaways error:", err)
+    return res.status(500).json({ error: "Impossible de récupérer les giveaways" })
+  }
+})
+
+// 2. Créer et lancer un giveaway depuis le panel
+router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  const { prize, durationMinutes = 60, winnersCount = 1, channelId } = req.body || {}
+
+  if (!channelId) {
+    return res.status(400).json({ error: "Le salon Discord (channelId) est requis" })
+  }
+  if (!prize || !String(prize).trim()) {
+    return res.status(400).json({ error: "Le lot à gagner (prize) est requis" })
+  }
+
+  const duration = Math.max(1, Number.parseInt(durationMinutes, 10) || 60)
+  const winners = Math.max(1, Number.parseInt(winnersCount, 10) || 1)
+  const token = getBotToken()
+  if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant" })
+
+  try {
+    const giveawayId = new ObjectId()
+    const endTime = new Date(Date.now() + duration * 60000)
+    const endTimestamp = Math.floor(endTime.getTime() / 1000)
+
+    const embed = {
+      title: `🎉 GIVEAWAY : ${prize.trim()}`,
+      description:
+        `Cliquez sur le bouton **Participer** ci-dessous pour tenter votre chance !\n\n` +
+        `🎁 **Lot à gagner :** **${prize.trim()}**\n` +
+        `🏆 **Nombre de gagnant(s) :** \`${winners}\`\n` +
+        `⏰ **Fin du tirage :** <t:${endTimestamp}:R> (<t:${endTimestamp}:f>)\n` +
+        `👤 **Organisé par :** Panneau Web (${req.user?.username || "Admin"})\n` +
+        `👥 **Participants actuels :** \`0\``,
+      color: 0x6366f1,
+      footer: { text: `ID du Giveaway : ${giveawayId.toString()}` },
+      timestamp: new Date().toISOString()
+    }
+
+    const actionRow = {
+      type: 1,
+      components: [
+        {
+          type: 2,
+          custom_id: `giveaway_join_${giveawayId.toString()}`,
+          label: "Participer (0)",
+          emoji: { name: "🎉" },
+          style: 1 // Primary
+        }
+      ]
+    }
+
+    // Envoi du message avec le bouton interactif sur Discord
+    const discordRes = await axios.post(
+      `https://discord.com/api/channels/${channelId}/messages`,
+      { embeds: [embed], components: [actionRow] },
+      { headers: { Authorization: `Bot ${token}` } }
+    )
+
+    const messageId = discordRes.data?.id || null
+
+    const db = await getDb()
+    const newDoc = {
+      _id: giveawayId,
+      guildId,
+      channelId,
+      messageId,
+      endTime,
+      prize: prize.trim(),
+      winnersCount: winners,
+      participants: [],
+      winners: [],
+      hostedBy: req.user?.id || null,
+      isEnded: false,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+
+    await db.collection("Giveaways").insertOne(newDoc)
+
+    return res.status(201).json({
+      success: true,
+      giveaway: {
+        id: giveawayId.toString(),
+        ...newDoc
+      }
+    })
+  } catch (err) {
+    console.error("POST /api/guilds/:guildId/giveaways error:", err?.response?.data || err?.message)
+    return res.status(err?.response?.status || 500).json({
+      error: err?.response?.data?.message || "Impossible de créer le giveaway sur Discord"
+    })
+  }
+})
+
+// 3. Clôturer un giveaway et tirer les gagnants
+router.post("/guilds/:guildId/giveaways/:id/end", authenticate, async (req, res) => {
+  const { guildId, id } = req.params
+  const token = getBotToken()
+
+  try {
+    const db = await getDb()
+    let queryId = id
+    try {
+      queryId = new ObjectId(id)
+    } catch {}
+
+    const giveaway = await db.collection("Giveaways").findOne({
+      $or: [{ _id: queryId }, { _id: id }],
+      guildId
+    })
+
+    if (!giveaway) {
+      return res.status(404).json({ error: "Giveaway introuvable" })
+    }
+
+    if (giveaway.isEnded) {
+      return res.status(400).json({ error: "Ce giveaway est déjà terminé" })
+    }
+
+    // Tirer au sort les gagnants
+    const participants = [...(giveaway.participants || [])]
+    const winners = []
+    const pool = [...participants]
+    const countToPick = Math.min(giveaway.winnersCount || 1, pool.length)
+
+    while (winners.length < countToPick && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length)
+      winners.push(pool.splice(idx, 1)[0])
+    }
+
+    // Mettre à jour en BDD
+    await db.collection("Giveaways").updateOne(
+      { _id: giveaway._id },
+      {
+        $set: {
+          isEnded: true,
+          winners,
+          updatedAt: new Date()
+        }
+      }
+    )
+
+    // Mettre à jour Discord si bot token présent
+    if (token && giveaway.channelId) {
+      const winnersMentions =
+        winners.length > 0
+          ? winners.map((wid) => `<@${wid}>`).join(", ")
+          : "*Aucun participant éligible*"
+
+      const endEmbed = {
+        title: `🎉 GIVEAWAY : ${giveaway.prize}`,
+        description:
+          `Ce giveaway est maintenant **terminé** !\n\n` +
+          `🎁 **Lot gagné :** **${giveaway.prize}**\n` +
+          `🏆 **Gagnant(s) :** ${winnersMentions}\n` +
+          (giveaway.hostedBy ? `👤 **Organisé par :** <@${giveaway.hostedBy}>\n` : "") +
+          `👥 **Total participants :** \`${participants.length}\``,
+        color: 0x64748b,
+        footer: { text: `Giveaway Terminé • ID : ${giveaway._id.toString()}` },
+        timestamp: new Date().toISOString()
+      }
+
+      const disabledRow = {
+        type: 1,
+        components: [
+          {
+            type: 2,
+            custom_id: `giveaway_ended_${giveaway._id.toString()}`,
+            label: `Terminé (${participants.length} participants)`,
+            emoji: { name: "🔒" },
+            style: 2, // Secondary
+            disabled: true
+          }
+        ]
+      }
+
+      if (giveaway.messageId) {
+        await axios.patch(
+          `https://discord.com/api/channels/${giveaway.channelId}/messages/${giveaway.messageId}`,
+          { embeds: [endEmbed], components: [disabledRow] },
+          { headers: { Authorization: `Bot ${token}` } }
+        ).catch(() => {})
+      }
+
+      // Annonce gagnant(s)
+      if (winners.length > 0) {
+        await axios.post(
+          `https://discord.com/api/channels/${giveaway.channelId}/messages`,
+          {
+            content: `🎉 Félicitations ${winnersMentions} ! Vous avez gagné le giveaway pour **${giveaway.prize}** ! 🎁`
+          },
+          { headers: { Authorization: `Bot ${token}` } }
+        ).catch(() => {})
+      } else {
+        await axios.post(
+          `https://discord.com/api/channels/${giveaway.channelId}/messages`,
+          {
+            content: `😕 Aucun gagnant pour le giveaway **${giveaway.prize}** (aucun participant).`
+          },
+          { headers: { Authorization: `Bot ${token}` } }
+        ).catch(() => {})
+      }
+    }
+
+    return res.json({ success: true, winners, isEnded: true })
+  } catch (err) {
+    console.error("POST /api/guilds/:guildId/giveaways/:id/end error:", err)
+    return res.status(500).json({ error: "Impossible de terminer le giveaway" })
+  }
+})
+
+// 4. Reroll (relancer le tirage au sort)
+router.post("/guilds/:guildId/giveaways/:id/reroll", authenticate, async (req, res) => {
+  const { guildId, id } = req.params
+  const token = getBotToken()
+
+  try {
+    const db = await getDb()
+    let queryId = id
+    try {
+      queryId = new ObjectId(id)
+    } catch {}
+
+    const giveaway = await db.collection("Giveaways").findOne({
+      $or: [{ _id: queryId }, { _id: id }],
+      guildId
+    })
+
+    if (!giveaway) {
+      return res.status(404).json({ error: "Giveaway introuvable" })
+    }
+
+    const participants = [...(giveaway.participants || [])]
+    if (participants.length === 0) {
+      return res.status(400).json({ error: "Aucun participant éligible pour relancer le tirage" })
+    }
+
+    const winners = []
+    const pool = [...participants]
+    const countToPick = Math.min(giveaway.winnersCount || 1, pool.length)
+
+    while (winners.length < countToPick && pool.length > 0) {
+      const idx = Math.floor(Math.random() * pool.length)
+      winners.push(pool.splice(idx, 1)[0])
+    }
+
+    await db.collection("Giveaways").updateOne(
+      { _id: giveaway._id },
+      {
+        $set: {
+          winners,
+          isEnded: true,
+          updatedAt: new Date()
+        }
+      }
+    )
+
+    if (token && giveaway.channelId) {
+      const mentions = winners.map((wid) => `<@${wid}>`).join(", ")
+      await axios.post(
+        `https://discord.com/api/channels/${giveaway.channelId}/messages`,
+        {
+          content: `🔄 **Nouveau tirage (Reroll)** pour le giveaway **${giveaway.prize}** !\nFélicitations à ${mentions} ! 🎁`
+        },
+        { headers: { Authorization: `Bot ${token}` } }
+      ).catch(() => {})
+    }
+
+    return res.json({ success: true, winners })
+  } catch (err) {
+    console.error("POST /api/guilds/:guildId/giveaways/:id/reroll error:", err)
+    return res.status(500).json({ error: "Impossible de relancer le tirage" })
+  }
+})
+
+// 5. Supprimer un giveaway
+router.delete("/guilds/:guildId/giveaways/:id", authenticate, async (req, res) => {
+  const { guildId, id } = req.params
+  try {
+    const db = await getDb()
+    let queryId = id
+    try {
+      queryId = new ObjectId(id)
+    } catch {}
+
+    await db.collection("Giveaways").deleteOne({
+      $or: [{ _id: queryId }, { _id: id }],
+      guildId
+    })
+
+    return res.json({ success: true, id })
+  } catch (err) {
+    console.error("DELETE /api/guilds/:guildId/giveaways/:id error:", err)
+    return res.status(500).json({ error: "Impossible de supprimer le giveaway" })
   }
 })
 

@@ -8,6 +8,11 @@ module.exports = {
 
     if (!interaction.isButton()) return;
 
+    if (interaction.customId.startsWith("giveaway_join_")) {
+      const { handleGiveawayButton } = require("../../utils/giveawayUtils");
+      return handleGiveawayButton(interaction);
+    }
+
     if (interaction.customId.startsWith("role_react_")) {
       const roleId = interaction.customId.replace("role_react_", "");
       const role = interaction.guild.roles.cache.get(roleId);

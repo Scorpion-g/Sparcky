@@ -122,6 +122,17 @@ export default function GuildPage() {
   const [ticketPanelDesc, setTicketPanelDesc] = useState("Si tu as besoin d'aide ouvre un ticket correspondant à ta demande")
   const [sendingTicketPanel, setSendingTicketPanel] = useState(false)
 
+  // Données Giveaways
+  const [giveawaysList, setGiveawaysList] = useState([])
+  const [giveawaysLoading, setGiveawaysLoading] = useState(false)
+  const [gwPrize, setGwPrize] = useState("")
+  const [gwDuration, setGwDuration] = useState("60")
+  const [gwWinners, setGwWinners] = useState("1")
+  const [gwChannel, setGwChannel] = useState("")
+  const [gwSubmitting, setGwSubmitting] = useState(false)
+  const [gwActionLoading, setGwActionLoading] = useState(null)
+  const [gwMessage, setGwMessage] = useState(null)
+
   function logout() {
     clearJwt()
     navigate("/login", { replace: true })
@@ -206,6 +217,8 @@ export default function GuildPage() {
       fetchWarns()
     } else if (activeTab === "tickets" && id && token) {
       fetchTickets()
+    } else if (activeTab === "giveaways" && id && token) {
+      fetchGiveaways()
     }
   }, [activeTab, id, token])
 
@@ -406,6 +419,117 @@ export default function GuildPage() {
       alert(e.message)
     } finally {
       setSendingEmbed(false)
+    }
+  }
+
+  // Fonctions Giveaways
+  async function fetchGiveaways() {
+    setGiveawaysLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/giveaways`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setGiveawaysList(payload?.giveaways || [])
+      }
+    } catch (e) {
+      console.warn("fetchGiveaways error:", e)
+    } finally {
+      setGiveawaysLoading(false)
+    }
+  }
+
+  async function handleCreateGiveaway(e) {
+    if (e) e.preventDefault()
+    if (!gwPrize.trim() || !gwChannel) {
+      setGwMessage({ type: "error", text: "Veuillez renseigner un lot et choisir un salon." })
+      return
+    }
+    setGwSubmitting(true)
+    setGwMessage(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/giveaways`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prize: gwPrize.trim(),
+          durationMinutes: Number(gwDuration) || 60,
+          winnersCount: Number(gwWinners) || 1,
+          channelId: gwChannel
+        })
+      })
+      const payload = await res.json()
+      if (res.ok) {
+        setGwMessage({ type: "success", text: t("gw.successCreated") })
+        setGwPrize("")
+        fetchGiveaways()
+      } else {
+        setGwMessage({ type: "error", text: payload?.error || "Erreur lors de la création du giveaway" })
+      }
+    } catch (err) {
+      setGwMessage({ type: "error", text: err?.message || "Impossible de contacter l'API" })
+    } finally {
+      setGwSubmitting(false)
+    }
+  }
+
+  async function handleEndGiveaway(giveawayId) {
+    if (!window.confirm(t("gw.confirmEnd"))) return
+    setGwActionLoading(giveawayId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/giveaways/${giveawayId}/end`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setGwMessage({ type: "success", text: t("gw.successEnded") })
+        fetchGiveaways()
+      }
+    } catch (err) {
+      setGwMessage({ type: "error", text: err?.message })
+    } finally {
+      setGwActionLoading(null)
+    }
+  }
+
+  async function handleRerollGiveaway(giveawayId) {
+    if (!window.confirm(t("gw.confirmReroll"))) return
+    setGwActionLoading(giveawayId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/giveaways/${giveawayId}/reroll`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setGwMessage({ type: "success", text: t("gw.successReroll") })
+        fetchGiveaways()
+      }
+    } catch (err) {
+      setGwMessage({ type: "error", text: err?.message })
+    } finally {
+      setGwActionLoading(null)
+    }
+  }
+
+  async function handleDeleteGiveaway(giveawayId) {
+    if (!window.confirm(t("gw.confirmDelete"))) return
+    setGwActionLoading(giveawayId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/giveaways/${giveawayId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        fetchGiveaways()
+      }
+    } catch (err) {
+      setGwMessage({ type: "error", text: err?.message })
+    } finally {
+      setGwActionLoading(null)
     }
   }
 
@@ -764,6 +888,7 @@ export default function GuildPage() {
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
                   <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")} />
+                  <TabButton active={activeTab === "giveaways"} onClick={() => setActiveTab("giveaways")} icon="🎉" label={t("tabs.giveaways")} />
                   <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label={t("tabs.tickets")} />
                   <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label={t("tabs.embeds")} />
                   <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label={t("tabs.warns")} />
@@ -775,69 +900,69 @@ export default function GuildPage() {
                 {activeTab === "channels" && (
                   <div className="space-y-6">
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Salons Textuels et Vocaux</h2>
+                      <h2 className="text-lg font-bold text-white">{t("channels.title")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Sélectionnez les salons dédiés aux événements automatiques de God_Sparky.
+                        {t("channels.desc")}
                       </p>
 
                       <div className="mt-6 grid gap-4 md:grid-cols-2">
                         <SelectField
-                          label="Salon de Bienvenue"
-                          description="Salon où le message d'arrivée d'un nouveau membre est envoyé."
+                          label={t("channels.welcome")}
+                          description={t("channels.welcomeDesc")}
                           value={config?.welcomeChannel}
                           onChange={val => updateField("welcomeChannel", val)}
                           options={textChannels}
                         />
 
                         <SelectField
-                          label="Salon de Départ"
-                          description="Salon où le message d'au revoir lorsqu'un membre quitte le serveur est diffusé."
+                          label={t("channels.leave")}
+                          description={t("channels.leaveDesc")}
                           value={config?.leaveChannel}
                           onChange={val => updateField("leaveChannel", val)}
                           options={textChannels}
                         />
 
                         <SelectField
-                          label="Salon des Logs de Modération"
-                          description="Enregistre tous les événements de modération (avertissements, kicks, bans, suppressions de messages)."
+                          label={t("channels.modLog")}
+                          description={t("channels.modLogDesc")}
                           value={config?.modLogChannel}
                           onChange={val => updateField("modLogChannel", val)}
                           options={textChannels}
                         />
 
                         <SelectField
-                          label="Salon Vocal Hub (Temporaires)"
-                          description="Rejoindre ce salon déclenchera la création d'un vocal temporaire dédié pour le membre."
+                          label={t("channels.vocHub")}
+                          description={t("channels.vocHubDesc")}
                           value={config?.vocChannelId}
                           onChange={val => updateField("vocChannelId", val)}
                           options={voiceChannels}
                         />
 
                         <SelectField
-                          label="Salon d'Annonces & Mises à Jour du Bot"
-                          description="Où recevoir automatiquement les annonces de nouveautés et mises à jour majeures de God_Sparky."
+                          label={t("channels.announcements")}
+                          description={t("channels.announcementsDesc")}
                           value={config?.announcementChannel}
                           onChange={val => updateField("announcementChannel", val)}
-                          options={[{ id: "", name: "Détection automatique intelligente (recommandé)" }, ...textChannels]}
-                          placeholder="Détection automatique"
+                          options={[{ id: "", name: t("channels.autoDetect") }, ...textChannels]}
+                          placeholder={t("channels.autoDetect")}
                         />
                       </div>
                     </div>
 
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Attribution Automatique des Rôles</h2>
+                      <h2 className="text-lg font-bold text-white">{t("channels.autoRoleSection")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Attribuez automatiquement un rôle dès l'entrée sur le serveur Discord.
+                        {t("channels.autoRoleSectionDesc")}
                       </p>
 
                       <div className="mt-6 max-w-xl">
                         <SelectField
-                          label="Rôle Automatique (Auto-Role)"
-                          description="Rôle attribué instantanément à tous les nouveaux membres."
+                          label={t("channels.autoRole")}
+                          description={t("channels.autoRoleDesc")}
                           value={config?.autoRole}
                           onChange={val => updateField("autoRole", val)}
                           options={roles}
-                          placeholder="Aucun (pas de rôle automatique)"
+                          placeholder={t("channels.noRole")}
                         />
                       </div>
                     </div>
@@ -847,44 +972,44 @@ export default function GuildPage() {
                 {/* Section 2 : Sécurité & Modération */}
                 {activeTab === "security" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                    <h2 className="text-lg font-bold text-white">Systèmes de Sécurité & Modération</h2>
+                    <h2 className="text-lg font-bold text-white">{t("sec.title")}</h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      Activez les protections automatiques opérées en temps réel par God_Sparky sur votre serveur.
+                      {t("sec.desc")}
                     </p>
 
                     <div className="mt-6 grid gap-4 md:grid-cols-2">
                       <Toggle
-                        label="Protection Anti-Lien (Anti-Link)"
-                        description="Supprime automatiquement les liens d'invitation Discord et URLs non autorisées publiées par les membres."
+                        label={t("sec.antilink")}
+                        description={t("sec.antilinkDesc")}
                         checked={Boolean(config?.antilink)}
                         onChange={v => updateField("antilink", v)}
                       />
 
                       <Toggle
-                        label="Protection Anti-Spam"
-                        description="Détecte et supprime les messages répétitifs ou envoyés trop rapidement à haute fréquence."
+                        label={t("sec.antispam")}
+                        description={t("sec.antispamDesc")}
                         checked={Boolean(config?.antispam)}
                         onChange={v => updateField("antispam", v)}
                       />
 
                       <Toggle
-                        label="Filtre Anti-Insultes (Anti-BadWords)"
-                        description="Censure automatiquement les insultes et le vocabulaire offensant défini dans la liste de mots interdits."
+                        label={t("sec.antibadwords")}
+                        description={t("sec.antibadwordsDesc")}
                         checked={Boolean(config?.antiBadWords)}
                         onChange={v => updateField("antiBadWords", v)}
                       />
 
                       <Toggle
-                        label="Sanctions Automatiques (Auto-Sanction)"
-                        description="Applique des sanctions graduelles (avertissements, temporisations) automatiquement en cas de récidives."
+                        label={t("sec.autosanction")}
+                        description={t("sec.autosanctionDesc")}
                         checked={Boolean(config?.autoSanction)}
                         onChange={v => updateField("autoSanction", v)}
                       />
 
                       <div className="md:col-span-2">
                         <Toggle
-                          label="Mode Anti-Raid Renforcé"
-                          description="Active une surveillance stricte en cas de vague suspecte d'arrivées massives de comptes sur le serveur."
+                          label={t("sec.antiraidMode")}
+                          description={t("sec.antiraidModeDesc")}
                           checked={Boolean(config?.antiRaid)}
                           onChange={v => updateField("antiRaid", v)}
                         />
@@ -1381,6 +1506,237 @@ export default function GuildPage() {
                   </div>
                 )}
 
+                {/* Section Giveaways */}
+                {activeTab === "giveaways" && (
+                  <div className="space-y-6">
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">{t("gw.title")}</h2>
+                          <p className="mt-1 text-sm text-slate-400">{t("gw.desc")}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={fetchGiveaways}
+                          disabled={giveawaysLoading}
+                          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white hover:bg-white/10 transition self-start sm:self-auto"
+                        >
+                          {giveawaysLoading ? t("common.loading") : `🔄 ${t("common.refresh")}`}
+                        </button>
+                      </div>
+
+                      {gwMessage && (
+                        <div className={`mt-4 rounded-2xl p-4 text-sm font-medium ${
+                          gwMessage.type === "success" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          {gwMessage.text}
+                        </div>
+                      )}
+
+                      {/* Formulaire de création */}
+                      <form onSubmit={handleCreateGiveaway} className="mt-6 rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-5 space-y-4">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-400">
+                          ➕ {t("gw.createTitle")}
+                        </h3>
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              {t("gw.prize")}
+                            </label>
+                            <input
+                              type="text"
+                              value={gwPrize}
+                              onChange={(e) => setGwPrize(e.target.value)}
+                              placeholder={t("gw.prizePlaceholder")}
+                              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              {t("gw.channel")}
+                            </label>
+                            <select
+                              value={gwChannel}
+                              onChange={(e) => setGwChannel(e.target.value)}
+                              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                              required
+                            >
+                              <option value="">-- {t("gw.channelPlaceholder")} --</option>
+                              {textChannels.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  #{c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              {t("gw.duration")}
+                            </label>
+                            <div className="mt-1.5 flex gap-2">
+                              <input
+                                type="number"
+                                min="1"
+                                value={gwDuration}
+                                onChange={(e) => setGwDuration(e.target.value)}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                                required
+                              />
+                              <div className="flex gap-1 shrink-0">
+                                {[
+                                  { label: "15m", val: 15 },
+                                  { label: "1h", val: 60 },
+                                  { label: "24h", val: 1440 },
+                                  { label: "7j", val: 10080 }
+                                ].map((preset) => (
+                                  <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => setGwDuration(preset.val.toString())}
+                                    className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 transition"
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                              {t("gw.winnersCount")}
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="20"
+                              value={gwWinners}
+                              onChange={(e) => setGwWinners(e.target.value)}
+                              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={gwSubmitting}
+                            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-110 disabled:opacity-50"
+                          >
+                            {gwSubmitting ? t("gw.starting") : t("gw.btnStart")}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* Liste des Giveaways */}
+                      <div className="mt-8">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">
+                          📜 {t("gw.listTitle")} ({giveawaysList.length})
+                        </h3>
+
+                        {giveawaysLoading && giveawaysList.length === 0 ? (
+                          <p className="mt-4 text-sm text-slate-500">{t("common.loading")}</p>
+                        ) : giveawaysList.length === 0 ? (
+                          <div className="mt-4 rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-slate-400">
+                            {t("gw.noGiveaways")}
+                          </div>
+                        ) : (
+                          <div className="mt-4 space-y-3">
+                            {giveawaysList.map((g) => {
+                              const isEnded = Boolean(g.isEnded)
+                              const channelName = textChannels.find((c) => c.id === g.channelId)?.name || g.channelId
+                              const endTimeDate = new Date(g.endTime)
+                              const isExpired = !isEnded && endTimeDate <= new Date()
+
+                              return (
+                                <div
+                                  key={g.id}
+                                  className={`flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border p-4.5 transition ${
+                                    isEnded
+                                      ? "border-white/5 bg-slate-900/40 opacity-75"
+                                      : "border-indigo-500/30 bg-slate-900/80 shadow-md"
+                                  }`}
+                                >
+                                  <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-base font-bold text-white">🎁 {g.prize}</span>
+                                      <span
+                                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                          isEnded
+                                            ? "bg-slate-700 text-slate-300"
+                                            : isExpired
+                                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                            : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                        }`}
+                                      >
+                                        {isEnded ? t("gw.statusEnded") : isExpired ? "Expiration..." : t("gw.statusActive")}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                                      <span>📢 #{channelName}</span>
+                                      <span>🏆 {g.winnersCount} {t("gw.winnersCount")}</span>
+                                      <span>👥 {g.participantsCount || 0} {t("gw.participants")}</span>
+                                      <span>⏰ {endTimeDate.toLocaleString()}</span>
+                                    </div>
+
+                                    {isEnded && (
+                                      <div className="mt-1 text-xs text-indigo-300 font-medium">
+                                        {t("gw.winners")} {g.winners && g.winners.length > 0 ? (
+                                          <span>
+                                            {g.winners.map((wid) => `<@${wid}>`).join(", ")}
+                                          </span>
+                                        ) : (
+                                          <span className="italic text-slate-500">{t("gw.noWinners")}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {!isEnded ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEndGiveaway(g.id)}
+                                        disabled={gwActionLoading === g.id}
+                                        className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition disabled:opacity-50"
+                                      >
+                                        {gwActionLoading === g.id ? t("common.loading") : t("gw.btnEnd")}
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRerollGiveaway(g.id)}
+                                        disabled={gwActionLoading === g.id}
+                                        className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20 transition disabled:opacity-50"
+                                      >
+                                        {gwActionLoading === g.id ? t("common.loading") : t("gw.btnReroll")}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteGiveaway(g.id)}
+                                      disabled={gwActionLoading === g.id}
+                                      className="rounded-xl border border-red-500/20 bg-red-500/5 px-2.5 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/15 transition disabled:opacity-50"
+                                    >
+                                      {t("gw.btnDelete")}
+                                    </button>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Section 5 : Tickets Support */}
                 {activeTab === "tickets" && (
                   <div className="space-y-8">
@@ -1388,35 +1744,35 @@ export default function GuildPage() {
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <h2 className="text-lg font-bold text-white">Système de Tickets d'Assistance</h2>
+                          <h2 className="text-lg font-bold text-white">{t("tkt.title")}</h2>
                           <p className="mt-1 text-sm text-slate-400">
-                            Permet aux membres d'ouvrir des salons privés d'assistance avec l'équipe du serveur.
+                            {t("tkt.desc")}
                           </p>
                         </div>
                         {ticketData?.settings ? (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/30">
                             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                            Système configuré & actif
+                            {t("common.active")}
                           </span>
                         ) : (
                           <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
-                            En attente de configuration
+                            {t("common.disabled")}
                           </span>
                         )}
                       </div>
 
                       <div className="mt-6 space-y-4">
                         <Toggle
-                          label="Activer le système de tickets"
-                          description="Active la gestion automatique des tickets pour votre serveur."
+                          label={t("tkt.toggle")}
+                          description={t("tkt.toggleDesc")}
                           checked={Boolean(config?.ticketEnabled)}
                           onChange={v => updateField("ticketEnabled", v)}
                         />
 
                         <div className="grid gap-4 md:grid-cols-3">
                           <SelectField
-                            label="Catégorie Discord des tickets"
-                            description="Catégorie sous laquelle les salons de tickets seront créés."
+                            label={t("tkt.category")}
+                            description={t("tkt.categoryDesc")}
                             value={config?.ticketCategoryId}
                             onChange={val => updateField("ticketCategoryId", val)}
                             options={categoryChannels}
@@ -1424,8 +1780,8 @@ export default function GuildPage() {
                           />
 
                           <SelectField
-                            label="Rôle du Support"
-                            description="Rôle Discord qui aura la permission de voir et répondre dans les tickets."
+                            label={t("tkt.supportRole")}
+                            description={t("tkt.supportRoleDesc")}
                             value={config?.ticketSupportRoleId}
                             onChange={val => updateField("ticketSupportRoleId", val)}
                             options={roles}
@@ -1433,8 +1789,8 @@ export default function GuildPage() {
                           />
 
                           <SelectField
-                            label="Salon des Logs de tickets"
-                            description="Salon où les événements et fermetures de tickets seront notifiés."
+                            label={t("tkt.logChannel")}
+                            description={t("tkt.logChannelDesc")}
                             value={config?.ticketLogChannelId}
                             onChange={val => updateField("ticketLogChannelId", val)}
                             options={textChannels}
@@ -1443,7 +1799,7 @@ export default function GuildPage() {
                         </div>
 
                         <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
-                          <label className="text-sm font-semibold text-slate-100">Types / Catégories de Tickets (séparés par des virgules)</label>
+                          <label className="text-sm font-semibold text-slate-100">{t("tkt.types")}</label>
                           <p className="mt-1 text-xs text-slate-400">
                             Ces options apparaîtront dans le menu déroulant du panneau Discord (ex: suggestion, partenariats, problème, autre).
                           </p>
@@ -1459,9 +1815,9 @@ export default function GuildPage() {
 
                     {/* Déploiement / Renvoyer le panneau sur Discord */}
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Déployer le Panneau Interactif sur Discord</h2>
+                      <h2 className="text-lg font-bold text-white">{t("tkt.deployTitle")}</h2>
                       <p className="mt-1 text-sm text-slate-400">
-                        Envoyez le message d'ouverture de ticket avec son menu déroulant dans le salon de votre choix.
+                        {t("tkt.deployDesc")}
                       </p>
 
                       <div className="mt-6 grid gap-4 md:grid-cols-2">
