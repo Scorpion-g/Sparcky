@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.3.2";
+const CURRENT_VERSION = "2.3.4";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,36 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.3.4",
+    date: "11 Novembre 2026",
+    type: "MINOR",
+    githubUrl: getGitHubReleaseUrl("2.3.4"),
+    title: "Mise à Jour v2.3.4 : Constructeur d'Embeds Avancé (Champs Personnalisés & Rendu Discord Fidèle)",
+    summary: "Amélioration majeure du créateur d'embeds sur le panel et sur Discord : gestion dynamique des champs personnalisés (jusqu'à 25 fields avec nom, valeur et alignement inline), prévisualisation en direct identique au thème sombre officiel de Discord (#313338 / #2b2d31), et support des fields dans la commande slash /embed.",
+    highlights: [
+      {
+        emoji: "📑",
+        title: "Champs Personnalisés (Embed Fields)",
+        desc: "Ajout, modification, réorganisation et suppression de champs avec support du mode aligné côte à côte (inline)."
+      },
+      {
+        emoji: "🎨",
+        title: "Prévisualisation Discord Réaliste",
+        desc: "Rendu visuel fidèle au thème sombre Discord avec badge BOT, contraste réel de l'embed, miniature en haut à droite et bannière."
+      },
+      {
+        emoji: "🤖",
+        title: "Support Slash Command /embed",
+        desc: "Intégration d'options de champs directement dans la commande slash Discord pour les modérateurs."
+      },
+      {
+        emoji: "🚀",
+        title: "API REST Discord Évoluée",
+        desc: "Prise en charge complète des auteurs, miniatures, bannières et validation automatique des 25 champs."
+      }
+    ]
+  },
   {
     version: "2.3.2",
     date: "10 Novembre 2026",

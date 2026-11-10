@@ -171,10 +171,26 @@ router.delete("/guilds/:guildId/tickets/:channelId", authenticate, async (req, r
 // ==========================================
 router.post("/guilds/:guildId/embed", authenticate, async (req, res) => {
   const { guildId } = req.params
-  const { channelId, title, description, color = "#6366F1", image, thumbnail, footer } = req.body || {}
+  const {
+    channelId,
+    title,
+    description,
+    color = "#6366F1",
+    image,
+    thumbnail,
+    footer,
+    fields,
+    author,
+    authorIcon
+  } = req.body || {}
 
-  if (!channelId || !description) {
-    return res.status(400).json({ error: "channelId et description sont obligatoires" })
+  const hasDesc = Boolean(description && String(description).trim())
+  const hasFields = Array.isArray(fields) && fields.some(f => f && String(f.name || "").trim() && String(f.value || "").trim())
+  const hasTitle = Boolean(title && String(title).trim())
+  const hasImage = Boolean(image && String(image).startsWith("http"))
+
+  if (!channelId || (!hasDesc && !hasFields && !hasTitle && !hasImage)) {
+    return res.status(400).json({ error: "Le salon Discord et au moins un titre, une description, un champ ou une image sont obligatoires." })
   }
 
   const token = getBotToken()
@@ -182,19 +198,38 @@ router.post("/guilds/:guildId/embed", authenticate, async (req, res) => {
 
   try {
     // Parser la couleur hex en entier
-    const hex = color.replace("#", "")
+    const hex = String(color || "").replace("#", "")
     const colorInt = Number.parseInt(hex, 16) || 0x6366f1
 
     const embed = {
-      title: title ? String(title).slice(0, 256) : undefined,
-      description: String(description).slice(0, 4096),
       color: colorInt,
       timestamp: new Date().toISOString()
     }
 
-    if (image && image.startsWith("http")) embed.image = { url: image }
-    if (thumbnail && thumbnail.startsWith("http")) embed.thumbnail = { url: thumbnail }
-    if (footer) embed.footer = { text: String(footer).slice(0, 2048) }
+    if (hasTitle) embed.title = String(title).trim().slice(0, 256)
+    if (hasDesc) embed.description = String(description).trim().slice(0, 4096)
+
+    if (author && String(author).trim()) {
+      embed.author = {
+        name: String(author).trim().slice(0, 256),
+        icon_url: authorIcon && String(authorIcon).startsWith("http") ? String(authorIcon).trim() : undefined
+      }
+    }
+
+    if (hasFields) {
+      embed.fields = fields
+        .filter(f => f && typeof f === "object" && String(f.name || "").trim() && String(f.value || "").trim())
+        .slice(0, 25)
+        .map(f => ({
+          name: String(f.name).trim().slice(0, 256),
+          value: String(f.value).trim().slice(0, 1024),
+          inline: Boolean(f.inline)
+        }))
+    }
+
+    if (hasImage) embed.image = { url: String(image).trim() }
+    if (thumbnail && String(thumbnail).startsWith("http")) embed.thumbnail = { url: String(thumbnail).trim() }
+    if (footer && String(footer).trim()) embed.footer = { text: String(footer).trim().slice(0, 2048) }
 
     await axios.post(
       `https://discord.com/api/channels/${channelId}/messages`,

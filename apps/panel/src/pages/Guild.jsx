@@ -100,9 +100,16 @@ export default function GuildPage() {
   // Données Embed Builder
   const [embedForm, setEmbedForm] = useState({
     channelId: "",
+    author: "",
+    authorIcon: "",
     title: "📢 Annonce Importante",
     description: "Bienvenue sur le serveur Discord ! N'hésitez pas à consulter les salons d'informations.",
     color: "#6366F1",
+    fields: [
+      { name: "📌 Salons Utiles", value: "Consultez #reglement et #annonces pour rester informé.", inline: true },
+      { name: "🛡️ Sécurité & Support", value: "Ouvrez un ticket en cas de question ou de signalement.", inline: true },
+      { name: "🎉 Événements & Rôles", value: "Participez aux animations pour grimper dans le classement d'expérience !", inline: false }
+    ],
     image: "",
     thumbnail: "",
     footer: "God_Sparky • Modération & Événements"
@@ -392,8 +399,13 @@ export default function GuildPage() {
   }
 
   async function handleSendEmbed() {
-    if (!embedForm.channelId || !embedForm.description) {
-      alert("Veuillez sélectionner un salon et saisir une description.")
+    const hasDesc = Boolean(embedForm.description && embedForm.description.trim())
+    const hasFields = Array.isArray(embedForm.fields) && embedForm.fields.some(f => f.name?.trim() && f.value?.trim())
+    const hasTitle = Boolean(embedForm.title && embedForm.title.trim())
+    const hasImage = Boolean(embedForm.image && embedForm.image.trim())
+
+    if (!embedForm.channelId || (!hasDesc && !hasFields && !hasTitle && !hasImage)) {
+      alert("Veuillez sélectionner un salon Discord et renseigner au moins un titre, une description ou un champ.")
       return
     }
 
@@ -420,6 +432,44 @@ export default function GuildPage() {
     } finally {
       setSendingEmbed(false)
     }
+  }
+
+  function handleAddEmbedField() {
+    if ((embedForm.fields || []).length >= 25) {
+      alert("Discord limite les embeds à 25 champs maximum.")
+      return
+    }
+    setEmbedForm(prev => ({
+      ...prev,
+      fields: [...(prev.fields || []), { name: "", value: "", inline: false }]
+    }))
+  }
+
+  function handleUpdateEmbedField(index, key, val) {
+    setEmbedForm(prev => {
+      const fields = [...(prev.fields || [])]
+      fields[index] = { ...fields[index], [key]: val }
+      return { ...prev, fields }
+    })
+  }
+
+  function handleRemoveEmbedField(index) {
+    setEmbedForm(prev => ({
+      ...prev,
+      fields: (prev.fields || []).filter((_, i) => i !== index)
+    }))
+  }
+
+  function handleMoveEmbedField(index, direction) {
+    setEmbedForm(prev => {
+      const fields = [...(prev.fields || [])]
+      const targetIdx = index + direction
+      if (targetIdx < 0 || targetIdx >= fields.length) return prev
+      const temp = fields[index]
+      fields[index] = fields[targetIdx]
+      fields[targetIdx] = temp
+      return { ...prev, fields }
+    })
   }
 
   // Fonctions Giveaways
@@ -1963,16 +2013,21 @@ export default function GuildPage() {
                 {activeTab === "embeds" && (
                   <div className="space-y-6">
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Constructeur d'Annonces & d'Embeds Visuels</h2>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Composez un message riche avec prévisualisation Discord en direct et envoyez-le instantanément via God_Sparky.
-                      </p>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">{t("emb.title")}</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {t("emb.desc")}
+                          </p>
+                        </div>
+                      </div>
 
                       <div className="mt-6 grid gap-8 lg:grid-cols-2">
                         {/* Formulaire à gauche */}
-                        <div className="space-y-4">
+                        <div className="space-y-5">
+                          {/* Salon Discord */}
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Salon Discord de destination</label>
+                            <label className="text-xs font-semibold text-slate-300">{t("emb.channel")}</label>
                             <select
                               value={embedForm.channelId}
                               onChange={e => setEmbedForm({ ...embedForm, channelId: e.target.value })}
@@ -1986,30 +2041,69 @@ export default function GuildPage() {
                             </select>
                           </div>
 
+                          {/* Auteur Optionnel */}
+                          <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-3.5 space-y-3">
+                            <span className="text-xs font-semibold text-slate-300">{t("emb.author")}</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[11px] text-slate-400">{t("emb.authorName")}</label>
+                                <input
+                                  type="text"
+                                  value={embedForm.author || ""}
+                                  onChange={e => setEmbedForm({ ...embedForm, author: e.target.value })}
+                                  placeholder="ex: Sparcky Staff"
+                                  maxLength={256}
+                                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[11px] text-slate-400">{t("emb.authorIcon")}</label>
+                                <input
+                                  type="url"
+                                  value={embedForm.authorIcon || ""}
+                                  onChange={e => setEmbedForm({ ...embedForm, authorIcon: e.target.value })}
+                                  placeholder="https://..."
+                                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Titre */}
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Titre de l'embed</label>
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-300">{t("emb.embedTitle")}</label>
+                              <span className="text-[11px] text-slate-500">{(embedForm.title || "").length}/256</span>
+                            </div>
                             <input
                               type="text"
                               value={embedForm.title}
                               onChange={e => setEmbedForm({ ...embedForm, title: e.target.value })}
-                              placeholder="Titre..."
+                              placeholder={t("emb.embedTitlePlaceholder")}
+                              maxLength={256}
                               className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
                             />
                           </div>
 
+                          {/* Description */}
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Description (Supporte Markdown)</label>
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-semibold text-slate-300">{t("emb.embedDesc")}</label>
+                              <span className="text-[11px] text-slate-500">{(embedForm.description || "").length}/4096</span>
+                            </div>
                             <textarea
-                              rows={5}
+                              rows={4}
                               value={embedForm.description}
                               onChange={e => setEmbedForm({ ...embedForm, description: e.target.value })}
-                              placeholder="Texte de l'annonce..."
-                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              placeholder={t("emb.embedDescPlaceholder")}
+                              maxLength={4096}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500 font-sans"
                             />
                           </div>
 
+                          {/* Couleur */}
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Couleur de l'embed</label>
+                            <label className="text-xs font-semibold text-slate-300">{t("emb.color")}</label>
                             <div className="mt-1 flex items-center gap-3">
                               <input
                                 type="color"
@@ -2018,22 +2112,137 @@ export default function GuildPage() {
                                 className="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-slate-950 p-1"
                               />
                               <div className="flex flex-wrap gap-1">
-                                {["#6366F1", "#10B981", "#EF4444", "#F59E0B", "#EC4899", "#3B82F6"].map(c => (
+                                {["#6366F1", "#5865F2", "#10B981", "#EF4444", "#F59E0B", "#EC4899", "#3B82F6", "#8B5CF6"].map(c => (
                                   <button
                                     key={c}
                                     type="button"
                                     onClick={() => setEmbedForm({ ...embedForm, color: c })}
                                     style={{ backgroundColor: c }}
-                                    className="h-6 w-6 rounded-lg ring-1 ring-white/20 transition hover:scale-110"
+                                    className={`h-6 w-6 rounded-lg ring-1 transition hover:scale-110 ${
+                                      embedForm.color.toLowerCase() === c.toLowerCase() ? "ring-2 ring-white scale-110" : "ring-white/20"
+                                    }`}
                                   />
                                 ))}
                               </div>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3">
+                          {/* Champs Personnalisés (Fields) */}
+                          <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between border-t border-white/10 pt-4">
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs font-bold text-white uppercase tracking-wider">
+                                  {t("emb.fields")}
+                                </label>
+                                <span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-[11px] font-semibold text-indigo-300">
+                                  {(embedForm.fields || []).length}/25
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleAddEmbedField}
+                                disabled={(embedForm.fields || []).length >= 25}
+                                className="rounded-xl border border-indigo-500/30 bg-indigo-600/20 px-3 py-1.5 text-xs font-bold text-indigo-300 hover:bg-indigo-600/30 disabled:opacity-40 transition"
+                              >
+                                {t("emb.addField")}
+                              </button>
+                            </div>
+
+                            {(!embedForm.fields || embedForm.fields.length === 0) ? (
+                              <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-slate-400">
+                                Aucun champ personnalisé. Cliquez sur "{t("emb.addField")}" pour structurer votre message en colonnes ou blocs.
+                              </div>
+                            ) : (
+                              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                                {embedForm.fields.map((field, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="rounded-2xl border border-white/10 bg-slate-950/80 p-3.5 space-y-2.5 transition hover:border-white/20"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs font-semibold text-indigo-400">
+                                        Champ #{idx + 1}
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={idx === 0}
+                                          onClick={() => handleMoveEmbedField(idx, -1)}
+                                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-30 transition"
+                                          title="Monter"
+                                        >
+                                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={idx === embedForm.fields.length - 1}
+                                          onClick={() => handleMoveEmbedField(idx, 1)}
+                                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-30 transition"
+                                          title="Descendre"
+                                        >
+                                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveEmbedField(idx)}
+                                          className="p-1 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition ml-1"
+                                          title={t("emb.fieldDelete")}
+                                        >
+                                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <input
+                                        type="text"
+                                        value={field.name}
+                                        onChange={e => handleUpdateEmbedField(idx, "name", e.target.value)}
+                                        placeholder={t("emb.fieldNamePlaceholder")}
+                                        maxLength={256}
+                                        className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <textarea
+                                        rows={2}
+                                        value={field.value}
+                                        onChange={e => handleUpdateEmbedField(idx, "value", e.target.value)}
+                                        placeholder={t("emb.fieldValuePlaceholder")}
+                                        maxLength={1024}
+                                        className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-0.5">
+                                      <input
+                                        id={`inline-field-${idx}`}
+                                        type="checkbox"
+                                        checked={Boolean(field.inline)}
+                                        onChange={e => handleUpdateEmbedField(idx, "inline", e.target.checked)}
+                                        className="h-4 w-4 rounded border-white/20 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer"
+                                      />
+                                      <label htmlFor={`inline-field-${idx}`} className="text-[11px] text-slate-300 cursor-pointer">
+                                        {t("emb.fieldInline")} <span className="text-slate-500">(max 3 côte à côte sur Discord)</span>
+                                      </label>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Images Banner & Thumbnail */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                             <div>
-                              <label className="text-xs font-semibold text-slate-300">URL Image (Bannière)</label>
+                              <label className="text-xs font-semibold text-slate-300">{t("emb.image")}</label>
                               <input
                                 type="url"
                                 value={embedForm.image}
@@ -2043,7 +2252,7 @@ export default function GuildPage() {
                               />
                             </div>
                             <div>
-                              <label className="text-xs font-semibold text-slate-300">URL Miniature (Thumbnail)</label>
+                              <label className="text-xs font-semibold text-slate-300">{t("emb.thumbnail")}</label>
                               <input
                                 type="url"
                                 value={embedForm.thumbnail}
@@ -2054,75 +2263,162 @@ export default function GuildPage() {
                             </div>
                           </div>
 
+                          {/* Footer */}
                           <div>
-                            <label className="text-xs font-semibold text-slate-300">Pied de page (Footer)</label>
+                            <label className="text-xs font-semibold text-slate-300">{t("emb.footer")}</label>
                             <input
                               type="text"
                               value={embedForm.footer}
                               onChange={e => setEmbedForm({ ...embedForm, footer: e.target.value })}
                               placeholder="Texte du bas..."
+                              maxLength={2048}
                               className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
                             />
                           </div>
 
+                          {/* Bouton d'envoi */}
                           <div className="pt-2">
                             <button
                               type="button"
                               onClick={handleSendEmbed}
                               disabled={sendingEmbed}
-                              className="w-full rounded-2xl bg-indigo-600 px-6 py-3 font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:opacity-50"
+                              className="w-full rounded-2xl bg-indigo-600 px-6 py-3.5 font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
-                              {sendingEmbed ? "Envoi en cours sur Discord..." : "🚀 Envoyer l'annonce sur Discord"}
+                              {sendingEmbed ? (
+                                <>
+                                  <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                                  </svg>
+                                  <span>{t("emb.sending")}</span>
+                                </>
+                              ) : (
+                                <span>{t("emb.sendBtn")}</span>
+                              )}
                             </button>
                           </div>
                         </div>
 
-                        {/* Prévisualisation en direct à droite */}
+                        {/* Prévisualisation Discord fidèle à droite */}
                         <div>
-                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Prévisualisation Discord en direct
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                              👁️ {t("emb.previewTitle")}
+                            </label>
+                            <span className="text-[11px] text-slate-400">
+                              {t("emb.previewSub")}
+                            </span>
+                          </div>
 
-                          <div className="mt-2 rounded-2xl border border-white/10 bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                          {/* Message container (Discord Chat Dark Theme #313338) */}
+                          <div className="mt-3 rounded-2xl border border-white/10 bg-[#313338] p-4 sm:p-5 text-[#dbdee1] shadow-2xl font-sans">
+                            {/* Message Header */}
                             <div className="flex items-center gap-3">
                               {bot?.avatarUrl ? (
-                                <img src={bot.avatarUrl} alt="Bot" className="h-10 w-10 rounded-full" />
+                                <img src={bot.avatarUrl} alt="Bot" className="h-10 w-10 rounded-full object-cover shrink-0" />
                               ) : (
-                                <div className="h-10 w-10 rounded-full bg-indigo-600 grid place-items-center font-bold text-white">G</div>
-                              )}
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold text-white">{bot?.username || "God_Sparky"}</span>
-                                  <span className="rounded bg-[#5865f2] px-1 py-0.2 text-[10px] font-bold text-white">BOT</span>
+                                <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 grid place-items-center font-bold text-white shrink-0">
+                                  ⚡
                                 </div>
-                                <span className="text-[11px] text-[#949ba4]">Aujourd'hui à {new Date().toLocaleTimeString().slice(0, 5)}</span>
+                              )}
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-white text-[15px] hover:underline cursor-pointer">
+                                    {bot?.username || "God_Sparky"}
+                                  </span>
+                                  <span className="rounded bg-[#5865f2] px-1.5 py-0.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                                    BOT
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-[#949ba4]">
+                                  Aujourd'hui à {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
                               </div>
                             </div>
 
-                            {/* Embed Card */}
+                            {/* Embed Card (Discord Embed Dark #2b2d31 with Left Accent Border) */}
                             <div
-                              className="mt-3 flex overflow-hidden rounded-lg bg-[#2b2d31] border-l-4 p-4"
-                              style={{ borderColor: embedForm.color }}
+                              className="mt-3 max-w-[520px] rounded-[4px] bg-[#2b2d31] border-l-[4px] p-4 text-[#dbdee1] shadow-md space-y-3"
+                              style={{ borderColor: embedForm.color || "#6366F1" }}
                             >
-                              <div className="flex-1 space-y-2">
-                                {embedForm.title && (
-                                  <h4 className="font-bold text-white leading-tight">{embedForm.title}</h4>
-                                )}
-                                <p className="text-xs leading-relaxed whitespace-pre-wrap text-[#dbdee1]">
-                                  {embedForm.description || "Tapez du texte à gauche pour voir la prévisualisation..."}
-                                </p>
-                                {embedForm.image && (
-                                  <img src={embedForm.image} alt="Bannière" className="mt-3 max-h-48 w-full rounded-lg object-cover" />
-                                )}
-                                {embedForm.footer && (
-                                  <div className="mt-3 text-[10px] text-[#949ba4] border-t border-white/5 pt-2">
-                                    {embedForm.footer}
-                                  </div>
+                              {/* Auteur */}
+                              {embedForm.author && (
+                                <div className="flex items-center gap-2">
+                                  {embedForm.authorIcon && (
+                                    <img
+                                      src={embedForm.authorIcon}
+                                      alt="Auteur"
+                                      className="h-5 w-5 rounded-full object-cover shrink-0"
+                                      onError={e => { e.currentTarget.style.display = 'none' }}
+                                    />
+                                  )}
+                                  <span className="text-xs font-semibold text-white">
+                                    {embedForm.author}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Zone Titre, Description et Miniature */}
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 min-w-0 space-y-1.5">
+                                  {embedForm.title && (
+                                    <h4 className="text-[16px] font-bold text-white leading-snug hover:underline cursor-pointer">
+                                      {embedForm.title}
+                                    </h4>
+                                  )}
+                                  {embedForm.description && (
+                                    <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap text-[#dbdee1]">
+                                      {embedForm.description}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {embedForm.thumbnail && (
+                                  <img
+                                    src={embedForm.thumbnail}
+                                    alt="Miniature"
+                                    className="h-16 w-16 sm:h-20 sm:w-20 rounded-[4px] object-cover shrink-0 ml-2"
+                                    onError={e => { e.currentTarget.style.display = 'none' }}
+                                  />
                                 )}
                               </div>
 
-                              {embedForm.thumbnail && (
-                                <img src={embedForm.thumbnail} alt="Thumbnail" className="ml-4 h-16 w-16 rounded-lg object-cover" />
+                              {/* Champs Personnalisés (Fields) en Grille Discord */}
+                              {embedForm.fields && embedForm.fields.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 pt-1">
+                                  {embedForm.fields.map((field, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={field.inline ? "col-span-1" : "col-span-full"}
+                                    >
+                                      <div className="text-[13px] font-bold text-white leading-tight">
+                                        {field.name || <span className="italic text-[#949ba4]">(Nom du champ)</span>}
+                                      </div>
+                                      <div className="text-[13px] text-[#dbdee1] whitespace-pre-wrap leading-relaxed mt-0.5">
+                                        {field.value || <span className="italic text-[#949ba4]">(Valeur du champ)</span>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Bannière Image */}
+                              {embedForm.image && (
+                                <img
+                                  src={embedForm.image}
+                                  alt="Bannière"
+                                  className="mt-3 max-h-64 w-full rounded-[4px] object-cover"
+                                  onError={e => { e.currentTarget.style.display = 'none' }}
+                                />
+                              )}
+
+                              {/* Pied de page (Footer) */}
+                              {(embedForm.footer || embedForm.title || embedForm.description || (embedForm.fields && embedForm.fields.length > 0)) && (
+                                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-[#949ba4] pt-1 border-t border-white/5">
+                                  {embedForm.footer && <span>{embedForm.footer}</span>}
+                                  {embedForm.footer && <span>•</span>}
+                                  <span>Aujourd'hui à {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
                               )}
                             </div>
                           </div>

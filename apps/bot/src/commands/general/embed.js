@@ -56,6 +56,51 @@ module.exports = {
           "en-US": "Role to mention with the embed",
         })
         .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field1_name')
+        .setDescription('Nom du champ 1')
+        .setDescriptionLocalizations({ "en-US": "Field 1 name" })
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field1_value')
+        .setDescription('Valeur du champ 1')
+        .setDescriptionLocalizations({ "en-US": "Field 1 value" })
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('field1_inline')
+        .setDescription('Champ 1 aligné côte à côte (inline) ?')
+        .setDescriptionLocalizations({ "en-US": "Field 1 inline?" })
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field2_name')
+        .setDescription('Nom du champ 2')
+        .setDescriptionLocalizations({ "en-US": "Field 2 name" })
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field2_value')
+        .setDescription('Valeur du champ 2')
+        .setDescriptionLocalizations({ "en-US": "Field 2 value" })
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('field2_inline')
+        .setDescription('Champ 2 aligné côte à côte (inline) ?')
+        .setDescriptionLocalizations({ "en-US": "Field 2 inline?" })
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field3_name')
+        .setDescription('Nom du champ 3')
+        .setDescriptionLocalizations({ "en-US": "Field 3 name" })
+        .setRequired(false))
+    .addStringOption(option =>
+      option.setName('field3_value')
+        .setDescription('Valeur du champ 3')
+        .setDescriptionLocalizations({ "en-US": "Field 3 value" })
+        .setRequired(false))
+    .addBooleanOption(option =>
+      option.setName('field3_inline')
+        .setDescription('Champ 3 aligné côte à côte (inline) ?')
+        .setDescriptionLocalizations({ "en-US": "Field 3 inline?" })
+        .setRequired(false))
     .setDefaultMemberPermissions(BigInt(PermissionFlagsBits.Administrator)), // seul les admins
 
   async execute(interaction) {
@@ -103,6 +148,16 @@ module.exports = {
     }
     if (image) embed.setImage(image);
     if (thumbnail) embed.setThumbnail(thumbnail);
+
+    // Champs optionnels (fields 1 à 3)
+    for (let i = 1; i <= 3; i++) {
+      const fName = interaction.options.getString(`field${i}_name`);
+      const fValue = interaction.options.getString(`field${i}_value`)?.replace(/\\n/g, '\n');
+      const fInline = interaction.options.getBoolean(`field${i}_inline`) ?? false;
+      if (fName && fValue) {
+        embed.addFields({ name: fName.slice(0, 256), value: fValue.slice(0, 1024), inline: fInline });
+      }
+    }
 
     // Message final
     const messageContent = roleToMention ? `${roleToMention}` : null;
