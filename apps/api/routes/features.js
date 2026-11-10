@@ -1,7 +1,7 @@
 import express from "express"
 import { authenticate } from "../middlewares/auth.js"
 import { getDb } from "../lib/mongo.js"
-import { CURRENT_VERSION, getChangelog } from "@sparcky/database"
+import { CURRENT_VERSION, getChangelog, GITHUB_REPO, getGitHubReleaseUrl } from "@sparcky/database"
 import axios from "axios"
 
 const router = express.Router()
@@ -295,9 +295,29 @@ router.post("/guilds/:guildId/moderation/warns/:userId/revoke", authenticate, as
 // ==========================================
 // MODULE 6 : VERSIONING & DIFFUSION GLOBALE
 // ==========================================
-router.get("/version", (_req, res) => {
+router.get("/version", async (_req, res) => {
+  let latestGitHub = null
+  try {
+    const ghRes = await axios.get("https://api.github.com/repos/Scorpion-g/Sparcky/releases/latest", {
+      headers: { "User-Agent": "Sparcky-Bot" }
+    })
+    if (ghRes.data) {
+      latestGitHub = {
+        tag: ghRes.data.tag_name,
+        name: ghRes.data.name,
+        url: ghRes.data.html_url,
+        publishedAt: ghRes.data.published_at
+      }
+    }
+  } catch {
+    // Si aucune release publiée sur GitHub pour l'instant, fallback local
+  }
+
   return res.json({
     version: CURRENT_VERSION,
+    githubRepo: GITHUB_REPO,
+    githubUrl: getGitHubReleaseUrl(),
+    githubRelease: latestGitHub,
     changelog: getChangelog()
   })
 })
@@ -317,9 +337,11 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
     const guilds = botGuildsRes.data || []
 
     const release = getChangelog(version)
+    const githubLink = release.githubUrl || getGitHubReleaseUrl(release.version)
+
     const embed = {
       title: `📢 ${release.title}`,
-      description: `${release.summary}\n\n**🌐 Accéder au Panel de Gestion :**\n👉 [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n\n──────────────────────────────`,
+      description: `${release.summary}\n\n**🌐 Panel Web :** [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n**📦 GitHub Release :** [Scorpion-g/Sparcky (v${release.version})](${githubLink})\n\n──────────────────────────────`,
       color: 0x6366f1,
       fields: release.highlights.map(h => ({
         name: `${h.emoji} ${h.title}`,
@@ -327,7 +349,7 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
         inline: false
       })),
       footer: {
-        text: `God_Sparky v${release.version} • ${release.date} • Système de Versioning Automatique`
+        text: `God_Sparky v${release.version} • GitHub: Scorpion-g/Sparcky`
       },
       timestamp: new Date().toISOString()
     }
@@ -414,6 +436,83 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
     console.error("POST /api/admin/broadcast-update error:", err)
     return res.status(500).json({ error: "Échec de la diffusion globale" })
   }
+})
+
+// ==========================================
+// MODULE 7 : GITHUB WEBHOOK (AUTO BROADCAST SUR RELEASE)
+// ==========================================
+router.post("/webhooks/github", async (req, res) => {
+  const event = req.headers["x-github-event"]
+  const payload = req.body || {}
+
+  if (event === "ping") {
+    return res.json({ msg: "GitHub Webhook connecté avec succès !" })
+  }
+
+  if (event === "release" && payload.action === "published") {
+    const release = payload.release
+    const tagName = release?.tag_name || "v2.0.0"
+    const releaseTitle = release?.name || `Mise à jour ${tagName}`
+    const releaseBody = release?.body || ""
+
+    console.log(`[GitHub Webhook] Nouvelle release officielle publiée : ${tagName} (${releaseTitle})`)
+
+    const token = getBotToken()
+    if (token) {
+      try {
+        const db = await getDb()
+        const botGuildsRes = await axios.get("https://discord.com/api/users/@me/guilds", {
+          headers: { Authorization: `Bot ${token}` }
+        })
+        const guilds = botGuildsRes.data || []
+
+        const embed = {
+          title: `📢 ${releaseTitle}`,
+          description: `${releaseBody ? releaseBody.slice(0, 500) + "...\n\n" : ""}` +
+            `**🌐 Panel Web :** [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n` +
+            `**📦 GitHub Release :** [Scorpion-g/Sparcky (${tagName})](${release?.html_url || getGitHubReleaseUrl(tagName)})\n\n` +
+            `──────────────────────────────`,
+          color: 0x6366f1,
+          footer: { text: `God_Sparky ${tagName} • Publication GitHub Automatisée` },
+          timestamp: new Date().toISOString()
+        }
+
+        for (const g of guilds) {
+          try {
+            const guildConfig = await db.collection("guildconfigurations").findOne({ guildId: g.id })
+            if (guildConfig?.lastAnnouncedVersion === tagName) continue
+
+            const chRes = await axios.get(`https://discord.com/api/guilds/${g.id}/channels`, {
+              headers: { Authorization: `Bot ${token}` }
+            })
+            const channels = Array.isArray(chRes.data) ? chRes.data : []
+            let targetChannel = guildConfig?.announcementChannel ? channels.find(c => c.id === guildConfig.announcementChannel && c.type === 0) : null
+            if (!targetChannel) targetChannel = channels.find(c => c.type === 0 && ["annonces", "annonce", "news", "general"].some(p => c.name?.toLowerCase().includes(p)))
+            if (!targetChannel) targetChannel = channels.find(c => c.type === 0)
+            if (!targetChannel) continue
+
+            await axios.post(
+              `https://discord.com/api/channels/${targetChannel.id}/messages`,
+              { embeds: [embed] },
+              { headers: { Authorization: `Bot ${token}` } }
+            )
+
+            await db.collection("guildconfigurations").updateOne(
+              { guildId: g.id },
+              { $set: { lastAnnouncedVersion: tagName, updatedAt: new Date() } },
+              { upsert: true }
+            )
+          } catch (gErr) {
+            console.error(`[GitHub Webhook] Échec diffusion sur guilde ${g.id}:`, gErr?.message)
+          }
+        }
+      } catch (e) {
+        console.error("[GitHub Webhook] Erreur lors de la diffusion automatique:", e?.message)
+      }
+    }
+  }
+
+  return res.json({ received: true })
 })
 
 export default router

@@ -8,12 +8,16 @@ const logger = require("./logger");
  */
 function buildReleaseEmbed(version = CURRENT_VERSION, client = null) {
   const release = getChangelog(version);
+  const githubLink = release.githubUrl || `https://github.com/Scorpion-g/Sparcky/releases/tag/v${release.version}`;
 
   const embed = new EmbedBuilder()
     .setColor("#6366F1")
     .setTitle(`📢 ${release.title}`)
     .setDescription(
-      `${release.summary}\n\n**🌐 Accéder au Panel de Gestion :**\n👉 [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n\n──────────────────────────────`
+      `${release.summary}\n\n` +
+      `**🌐 Panel Web :** [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n` +
+      `**📦 GitHub Release :** [Scorpion-g/Sparcky (v${release.version})](${githubLink})\n\n` +
+      `──────────────────────────────`
     )
     .setTimestamp();
 

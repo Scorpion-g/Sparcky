@@ -13,7 +13,10 @@ export const {
   CURRENT_VERSION,
   CHANGELOGS,
   getLatestChangelog,
-  getChangelog
+  getChangelog,
+  GITHUB_REPO,
+  GITHUB_REPO_URL,
+  getGitHubReleaseUrl
 } = db;
 
 export default db;

@@ -7,7 +7,15 @@ const Ticket = require("./models/Ticket");
 const User = require("./models/User");
 const Warn = require("./models/Warn");
 const { defaultGuildConfig } = require("./defaults");
-const { CURRENT_VERSION, CHANGELOGS, getLatestChangelog, getChangelog } = require("./version");
+const {
+  CURRENT_VERSION,
+  CHANGELOGS,
+  getLatestChangelog,
+  getChangelog,
+  GITHUB_REPO,
+  GITHUB_REPO_URL,
+  getGitHubReleaseUrl
+} = require("./version");
 
 module.exports = {
   mongoose,
@@ -22,5 +30,8 @@ module.exports = {
   CURRENT_VERSION,
   CHANGELOGS,
   getLatestChangelog,
-  getChangelog
+  getChangelog,
+  GITHUB_REPO,
+  GITHUB_REPO_URL,
+  getGitHubReleaseUrl
 };

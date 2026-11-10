@@ -1,10 +1,18 @@
+const GITHUB_REPO = "Scorpion-g/Sparcky";
+const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
 const CURRENT_VERSION = "2.0.0";
+
+function getGitHubReleaseUrl(version = CURRENT_VERSION) {
+  const tag = version.startsWith("v") ? version : `v${version}`;
+  return `${GITHUB_REPO_URL}/releases/tag/${tag}`;
+}
 
 const CHANGELOGS = [
   {
     version: "2.0.0",
     date: "10 Novembre 2026",
     type: "MAJOR",
+    githubUrl: getGitHubReleaseUrl("2.0.0"),
     title: "Mise à Jour v2.0.0 : Nouveau Panel Web, Économie Complète & Niveaux",
     summary: "Lancement officiel de la version 2.0.0 de God_Sparky ! Découvrez notre nouveau tableau de bord en ligne, un système économique avec boutique interactive, un module d'XP avec rôles de paliers, des tickets dynamiques et un support multi-langues.",
     highlights: [
@@ -52,8 +60,11 @@ function getChangelog(version) {
 }
 
 module.exports = {
+  GITHUB_REPO,
+  GITHUB_REPO_URL,
   CURRENT_VERSION,
   CHANGELOGS,
   getLatestChangelog,
-  getChangelog
+  getChangelog,
+  getGitHubReleaseUrl
 };
