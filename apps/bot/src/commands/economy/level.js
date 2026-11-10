@@ -5,6 +5,7 @@ const {
 
 const calculateLevelXp = require("../../utils/calculateLevelXp");
 const Level = require("../../models/Level");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 const { RankCardBuilder, Font } = require("canvacord");
 
 try {
@@ -34,6 +35,14 @@ module.exports = {
     if (!interaction.inGuild()) {
       return interaction.reply({
         content: await interaction.t("ERRORS.GUILD_ONLY"),
+        ephemeral: true,
+      });
+    }
+
+    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+    if (guildConfig && guildConfig.xpEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système de niveaux et d'expérience est actuellement désactivé sur ce serveur.",
         ephemeral: true,
       });
     }

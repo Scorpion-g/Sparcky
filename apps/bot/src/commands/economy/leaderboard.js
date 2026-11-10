@@ -40,7 +40,31 @@ module.exports = {
    * @param {import("discord.js").ChatInputCommandInteraction} interaction
    */
   async execute(interaction) {
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "Cette commande doit être exécutée sur un serveur.",
+        ephemeral: true,
+      });
+    }
+
     const subcommand = interaction.options.getSubcommand();
+
+    const GuildConfiguration = require("../../models/GuildConfiguration");
+    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+
+    if (subcommand === "money" && guildConfig && guildConfig.economyEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
+
+    if (subcommand === "level" && guildConfig && guildConfig.xpEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système de niveaux et d'expérience est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
 
     const configs = {
       warns: {

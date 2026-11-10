@@ -35,14 +35,19 @@ module.exports = {
       });
     }
 
-    await interaction.deferReply();
-
     const guildId = interaction.guild.id;
+    const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
+    if (guildConfig && guildConfig.economyEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply();
     const userId = interaction.member.id;
     const bet = interaction.options.getInteger("mise");
     const choice = interaction.options.getString("choix");
-
-    const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
     const currencySymbol = guildConfig?.currencySymbol || "$";
 
     let user = await User.findOne({ guildId, userId });

@@ -16,6 +16,7 @@ const guildConfigSchema = new mongoose.Schema({
   vocChannelId: { type: String, default: null },
 
   // --- Economie ---
+  economyEnabled: { type: Boolean, default: true },
   currencySymbol: { type: String, default: "$" },
   currencyName: { type: String, default: "Coins" },
   dailyAmount: { type: Number, default: 500 },

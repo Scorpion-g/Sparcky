@@ -15,6 +15,7 @@ function defaultGuildConfig() {
     vocChannelId: null,
 
     // Economie
+    economyEnabled: true,
     currencySymbol: "$",
     currencyName: "Coins",
     dailyAmount: 500,

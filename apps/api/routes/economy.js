@@ -77,6 +77,7 @@ router.get("/guilds/:guildId/economy", authenticate, async (req, res) => {
     return res.json({
       guildId,
       economy: {
+        economyEnabled: config.economyEnabled !== false,
         currencySymbol: config.currencySymbol || "$",
         currencyName: config.currencyName || "Coins",
         dailyAmount: config.dailyAmount ?? 500,

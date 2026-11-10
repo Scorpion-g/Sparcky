@@ -6,6 +6,7 @@ const {
 const { v4: uuid } = require("uuid");
 const ShopItem = require("../../models/Shop");
 const User = require("../../models/User");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -159,8 +160,23 @@ module.exports = {
 
   // --- Exécution des sous-commandes ---
   async execute(interaction) {
-    const subcommand = interaction.options.getSubcommand();
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "Cette commande doit être exécutée sur un serveur.",
+        ephemeral: true,
+      });
+    }
+
     const guildId = interaction.guild.id;
+    const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
+    if (guildConfig && guildConfig.economyEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système d'économie et de boutique est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
+
+    const subcommand = interaction.options.getSubcommand();
     const userId = interaction.user.id;
 
     await interaction.deferReply({ ephemeral: true });

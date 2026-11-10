@@ -241,6 +241,7 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     badWords: cleanBadWords,
 
     // Economie
+    economyEnabled: typeof patch.economyEnabled === "boolean" ? patch.economyEnabled : undefined,
     currencySymbol: typeof patch.currencySymbol === "string" ? patch.currencySymbol.slice(0, 8) : undefined,
     currencyName: typeof patch.currencyName === "string" ? patch.currencyName.slice(0, 32) : undefined,
     dailyAmount: typeof patch.dailyAmount === "number" ? Math.max(0, Math.floor(patch.dailyAmount)) : undefined,

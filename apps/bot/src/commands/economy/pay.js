@@ -1,5 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const User = require("../../models/User");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
 
 module.exports = {
@@ -28,6 +29,21 @@ module.exports = {
         .setRequired(true),
     ),
   async execute(interaction) {
+    if (!interaction.inGuild()) {
+      return interaction.reply({
+        content: "Cette commande doit être exécutée sur un serveur.",
+        ephemeral: true,
+      });
+    }
+
+    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+    if (guildConfig && guildConfig.economyEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
+
     const targetUser = interaction.options.getUser("utilisateur");
     const amount = interaction.options.getInteger("montant");
 

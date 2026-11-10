@@ -31,12 +31,19 @@ module.exports = {
       return;
     }
 
+    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+    if (guildConfig && guildConfig.economyEnabled === false) {
+      return interaction.reply({
+        content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+        ephemeral: true,
+      });
+    }
+
     const targetUserId =
       interaction.options.get("user")?.value || interaction.member.id;
 
     await interaction.deferReply();
 
-    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
     const currencySymbol = guildConfig?.currencySymbol || "$";
     const currencyName = guildConfig?.currencyName || "Coins";
 

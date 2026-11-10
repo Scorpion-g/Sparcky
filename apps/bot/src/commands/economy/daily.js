@@ -22,9 +22,15 @@ module.exports = {
     }
 
     try {
-      await interaction.deferReply();
-
       const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+      if (guildConfig && guildConfig.economyEnabled === false) {
+        return interaction.reply({
+          content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+          ephemeral: true,
+        });
+      }
+
+      await interaction.deferReply();
       const dailyAmount = guildConfig?.dailyAmount ?? 500;
       const currencySymbol = guildConfig?.currencySymbol || "$";
 

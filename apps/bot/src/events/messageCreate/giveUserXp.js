@@ -45,8 +45,9 @@ module.exports = {
       const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
 
       // --- 1. Récompense économique passive par message (Chat-to-Earn) ---
+      const economyEnabled = guildConfig?.economyEnabled !== false;
       const chatReward = guildConfig?.chatReward || 0;
-      if (chatReward > 0) {
+      if (economyEnabled && chatReward > 0) {
         await User.updateOne(
           { guildId, userId },
           { $inc: { balance: chatReward } },

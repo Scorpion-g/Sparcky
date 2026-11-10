@@ -36,12 +36,17 @@ module.exports = {
     }
 
     try {
-      await interaction.deferReply();
-
       const guildId = interaction.guild.id;
-      const userId = interaction.member.id;
-
       const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
+      if (guildConfig && guildConfig.economyEnabled === false) {
+        return interaction.reply({
+          content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+          ephemeral: true,
+        });
+      }
+
+      await interaction.deferReply();
+      const userId = interaction.member.id;
       const minSalary = guildConfig?.workMin ?? 50;
       const maxSalary = Math.max(minSalary, guildConfig?.workMax ?? 250);
       const currencySymbol = guildConfig?.currencySymbol || "$";

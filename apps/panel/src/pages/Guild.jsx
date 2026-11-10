@@ -759,8 +759,8 @@ export default function GuildPage() {
                 <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
                   <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label="Salons & Rôles" />
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label="Sécurité" />
-                  <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label="Économie & Shop" />
-                  <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label="Niveaux & XP" />
+                  <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? "Économie (Off)" : "Économie & Shop"} />
+                  <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? "Niveaux (Off)" : "Niveaux & XP"} />
                   <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label="Tickets" />
                   <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label="Embed Builder" />
                   <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label="Sanctions Web" />
@@ -884,6 +884,46 @@ export default function GuildPage() {
                 {/* Section 3 : Économie & Boutique (Shop) */}
                 {activeTab === "economy" && (
                   <div className="space-y-8">
+                    {/* Activation du module */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Système d'Économie & Récompenses</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Configurez la monnaie virtuelle, les gains et la boutique de votre communauté.
+                          </p>
+                        </div>
+                        <div>
+                          {config?.economyEnabled === false ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400">
+                              <span className="h-2 w-2 rounded-full bg-rose-400" />
+                              Désactivé
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              Actif
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-6 space-y-4">
+                        <Toggle
+                          label="Activer le système d'économie sur ce serveur"
+                          description="Permet aux membres d'utiliser les commandes d'argent (/money, /daily, /work, /coinflip, /pay), la boutique (/shop) et les récompenses de chat."
+                          checked={config?.economyEnabled !== false}
+                          onChange={v => updateField("economyEnabled", v)}
+                        />
+                      </div>
+
+                      {config?.economyEnabled === false && (
+                        <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs text-amber-300">
+                          ⚠️ <strong>Économie désactivée</strong> : les membres ne peuvent pas gagner d'argent, transférer de fonds ou faire des achats sur Discord. Vous pouvez continuer à ajuster les paramètres ci-dessous en préparation.
+                        </div>
+                      )}
+                    </div>
+
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
                       <h2 className="text-lg font-bold text-white">Configuration de la Monnaie & des Gains</h2>
                       <p className="mt-1 text-sm text-slate-400">
@@ -1140,10 +1180,27 @@ export default function GuildPage() {
                 {activeTab === "leveling" && (
                   <div className="space-y-8">
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                      <h2 className="text-lg font-bold text-white">Système d'Expérience & Niveaux</h2>
-                      <p className="mt-1 text-sm text-slate-400">
-                        Récompensez l'activité des membres sur votre serveur Discord.
-                      </p>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Système d'Expérience & Niveaux</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Récompensez l'activité des membres sur votre serveur Discord.
+                          </p>
+                        </div>
+                        <div>
+                          {config?.xpEnabled === false ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-400">
+                              <span className="h-2 w-2 rounded-full bg-rose-400" />
+                              Désactivé
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
+                              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                              Actif
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
                       <div className="mt-6 space-y-4">
                         <Toggle
