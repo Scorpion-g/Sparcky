@@ -11,33 +11,45 @@ const CHANGELOGS = [
   {
     version: "2.3.4",
     date: "11 Novembre 2026",
-    type: "MINOR",
+    type: "MAJOR",
     githubUrl: getGitHubReleaseUrl("2.3.4"),
-    title: "Mise à Jour v2.3.4 : Constructeur d'Embeds Avancé (Champs Personnalisés & Rendu Discord Fidèle)",
-    summary: "Amélioration majeure du créateur d'embeds sur le panel et sur Discord : gestion dynamique des champs personnalisés (jusqu'à 25 fields avec nom, valeur et alignement inline), prévisualisation en direct identique au thème sombre officiel de Discord (#313338 / #2b2d31), et support des fields dans la commande slash /embed.",
+    title: "Sparcky v2 : La Grande Évolution (Refonte Majeure depuis la v1)",
+    summary: "Après des semaines de développement, Sparcky passe un cap historique ! Fini les commandes dispersées et les réglages fastidieux : découvrez une refonte totale de l'architecture, un nouveau dashboard web avec mode démo, une sécurité renforcée et une ergonomie repensée pour vos communautés.",
     highlights: [
       {
-        emoji: "📑",
-        title: "Champs Personnalisés (Embed Fields)",
-        desc: "Ajout, modification, réorganisation et suppression de champs avec support du mode aligné côte à côte (inline).",
+        emoji: "🛡️",
+        title: "Sécurité & Sanctions (/security)",
+        desc: "Anti-raid, anti-spam, anti-lien, filtre de mots interdits intelligent et sanctions automatiques progressives (warns, timeout, kick, ban).",
         inline: true
       },
       {
-        emoji: "🎨",
-        title: "Prévisualisation Discord Réaliste",
-        desc: "Rendu visuel fidèle au thème sombre Discord avec badge BOT, contraste réel de l'embed, miniature en haut à droite et bannière.",
+        emoji: "⚙️",
+        title: "Hubs Unifiés & Menu /help",
+        desc: "Centralisation totale avec /setup (bienvenue, autoroles, vocaux) et menu déroulant interactif par catégories sur /help.",
         inline: true
       },
       {
-        emoji: "🤖",
-        title: "Support Slash Command /embed",
-        desc: "Intégration d'options de champs directement dans la commande slash Discord pour les modérateurs.",
+        emoji: "🌐",
+        title: "Nouveau Dashboard & Démo Web",
+        desc: "Panel web complet (sparcky.matteoriviere.fr) traduit en 3 langues (FR/EN/ES) et mode Sandbox Démo accessible sans connexion.",
         inline: true
       },
       {
-        emoji: "🚀",
-        title: "API REST Discord Évoluée",
-        desc: "Prise en charge complète des auteurs, miniatures, bannières et validation automatique des 25 champs.",
+        emoji: "📢",
+        title: "Constructeur d'Embeds Visuels",
+        desc: "Créez des annonces sur mesure avec prévisualisation Discord en direct, jusqu'à 25 champs (fields) et options inline.",
+        inline: true
+      },
+      {
+        emoji: "🎵",
+        title: "Blind Test & Giveaways",
+        desc: "Blind Test Deezer avec tolérance des fautes (Levenshtein), durées personnalisées et système complet de tirages au sort.",
+        inline: true
+      },
+      {
+        emoji: "🧹",
+        title: "Nettoyage Avancé (/clear)",
+        desc: "Purge intelligente et rapide des messages avec filtres par membre, messages de bots ou liens publicitaires.",
         inline: true
       }
     ]
