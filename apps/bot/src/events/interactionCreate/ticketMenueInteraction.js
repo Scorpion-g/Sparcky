@@ -25,9 +25,15 @@ module.exports = {
     const supportRoleId = ticketSettings.supportRoleId;
     const ticketCategoryId = ticketSettings.ticketCategoryId;
 
+    const safeUsername =
+      interaction.user.username
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "")
+        .slice(0, 20) || interaction.user.id;
+
     const existingChannel = guild.channels.cache.find(
       (channel) =>
-        channel.name === `ticket-${interaction.user.username}` &&
+        (channel.name === `ticket-${safeUsername}` || channel.name === `ticket-${interaction.user.username.toLowerCase()}`) &&
         channel.parentId === ticketCategoryId,
     );
     if (existingChannel) {
@@ -68,7 +74,7 @@ module.exports = {
 
     try {
       const ticketChannel = await guild.channels.create({
-        name: `ticket-${interaction.user.username}`,
+        name: `ticket-${safeUsername}`,
         type: 0,
         parent: ticketCategoryId,
         permissionOverwrites: permissions,

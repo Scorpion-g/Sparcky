@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionsBitField } = require("discord.js");
+const { EmbedBuilder, PermissionsBitField, PermissionFlagsBits } = require("discord.js");
 const GuildConfiguration = require("../../models/GuildConfiguration");
 const { addWarn } = require("../../utils/warnUtils");
 const logger = require("../../utils/logger");
@@ -8,6 +8,14 @@ module.exports = {
   name: "messageCreate",
   async execute(client, message) {
     if (message.author.bot || !message.guild) return;
+
+    // Ignorer les modérateurs et administrateurs
+    if (
+      message.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      message.member?.permissions.has(PermissionFlagsBits.ManageMessages)
+    ) {
+      return;
+    }
 
     const guildConfig = await GuildConfiguration.findOne({
       guildId: message.guild.id,

@@ -9,6 +9,14 @@ module.exports = {
   async execute(client, message) {
     if (message.author.bot || !message.guild) return;
 
+    // Ignorer les modérateurs et administrateurs
+    if (
+      message.member?.permissions.has(PermissionFlagsBits.Administrator) ||
+      message.member?.permissions.has(PermissionFlagsBits.ManageMessages)
+    ) {
+      return;
+    }
+
     const guildConfig = await GuildConfiguration.findOne({
       guildId: message.guild.id,
     });

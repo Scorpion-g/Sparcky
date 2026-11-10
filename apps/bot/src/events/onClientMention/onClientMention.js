@@ -6,8 +6,21 @@ module.exports = {
   async execute(client, message) {
     if (message.author.bot || !message.guild) return;
 
-    // Vérifie si le bot est mentionné
-    if (!message.mentions.has(client.user)) return;
+    // 1. Ne pas réagir si c'est une réponse à un message (ex: réponse à l'embed du bot)
+    if (message.reference) return;
+
+    // 2. Ne pas réagir si c'est un @everyone ou @here
+    if (message.mentions.everyone) return;
+
+    // 3. Ne réagir que si le bot lui-même est ciblé directement (ignore les rôles et everyone)
+    if (!message.mentions.has(client.user.id, { ignoreRoles: true, ignoreEveryone: true })) return;
+
+    // 4. Vérifier que le contenu brut contient explicitement la mention directe du bot
+    const hasExplicitBotMention =
+      message.content.includes(`<@${client.user.id}>`) ||
+      message.content.includes(`<@!${client.user.id}>`);
+
+    if (!hasExplicitBotMention) return;
 
     // Générer la liste des commandes
     const commandList = [...client.commands.values()].map(
@@ -35,7 +48,7 @@ module.exports = {
         {
           name: await t(message, "MENTION.INVITE.TITLE"),
           value: await t(message, "MENTION.INVITE.VALUE", {
-            clientId: process.env.CLIENT_ID,
+            clientId: process.env.DISCORD_BOT_ID || process.env.CLIENT_ID || client.user.id,
           }),
         },
         {
@@ -47,11 +60,12 @@ module.exports = {
       .setFooter({ text: await t(message, "MENTION.FOOTER") });
 
     // Vérifie les permissions du bot avant d’envoyer
-    const botMember = await message.guild.members.fetch(client.user.id);
+    const botMember = await message.guild.members.fetch(client.user.id).catch(() => null);
     if (
+      !botMember ||
       !message.channel
         .permissionsFor(botMember)
-        .has([
+        ?.has([
           PermissionsBitField.Flags.SendMessages,
           PermissionsBitField.Flags.EmbedLinks,
         ])

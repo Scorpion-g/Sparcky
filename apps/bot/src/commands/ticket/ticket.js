@@ -266,7 +266,7 @@ module.exports = {
 
       return interaction.editReply({
         content: await interaction.t("TICKET.CLOSE.SUCCESS"),
-      });
+      }).catch(() => {});
     }
   },
 };

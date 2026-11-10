@@ -35,18 +35,22 @@ module.exports = {
     } catch (error) {
       logger.error(`Erreur lors de l'exécution de la commande ${interaction.commandName} par ${interaction.user.tag}: ${error.stack}`);
 
-      const msg = await interaction.t("ERRORS.COMMAND_FAILED");
+      try {
+        const msg = (await interaction.t?.("ERRORS.COMMAND_FAILED")) || "Une erreur est survenue lors de l'exécution de cette commande.";
 
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({
-          content: msg,
-          ephemeral: true,
-        });
-      } else {
-        await interaction.reply({
-          content: msg,
-          ephemeral: true,
-        });
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp({
+            content: msg,
+            ephemeral: true,
+          }).catch(() => {});
+        } else {
+          await interaction.reply({
+            content: msg,
+            ephemeral: true,
+          }).catch(() => {});
+        }
+      } catch (replyErr) {
+        logger.error(`Impossible de notifier l'utilisateur de l'erreur: ${replyErr?.message}`);
       }
     }
   },
