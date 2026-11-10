@@ -15,7 +15,7 @@ module.exports = {
     .setDescriptionLocalizations({
       fr: "Gérer les giveaways",
       "en-US": "Manage giveaways",
-      es: "Administrar sorteos",
+      "es-ES": "Administrar sorteos",
     })
     .addSubcommand((sub) =>
       sub
@@ -24,7 +24,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Démarrer un giveaway",
           "en-US": "Start a giveaway",
-          es: "Iniciar un sorteo",
+          "es-ES": "Iniciar un sorteo",
         })
         .addStringOption((opt) =>
           opt
@@ -33,7 +33,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Prix du giveaway",
               "en-US": "Giveaway prize",
-              es: "Premio del sorteo",
+              "es-ES": "Premio del sorteo",
             })
             .setRequired(true),
         )
@@ -44,7 +44,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Durée du giveaway en minutes",
               "en-US": "Giveaway duration in minutes",
-              es: "Duración en minutos",
+              "es-ES": "Duración en minutos",
             })
             .setRequired(true),
         )
@@ -55,7 +55,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Nombre de gagnants",
               "en-US": "Number of winners",
-              es: "Número de ganadores",
+              "es-ES": "Número de ganadores",
             })
             .setRequired(true),
         )
@@ -66,7 +66,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "Canal pour le giveaway",
               "en-US": "Channel for the giveaway",
-              es: "Canal para el sorteo",
+              "es-ES": "Canal para el sorteo",
             })
             .setRequired(true),
         ),
@@ -78,7 +78,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Terminer un giveaway",
           "en-US": "End a giveaway",
-          es: "Finalizar un sorteo",
+          "es-ES": "Finalizar un sorteo",
         })
         .addStringOption((opt) =>
           opt
@@ -87,7 +87,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "ID du giveaway à terminer",
               "en-US": "Giveaway ID to end",
-              es: "ID del sorteo a finalizar",
+              "es-ES": "ID del sorteo a finalizar",
             })
             .setRequired(true),
         ),
@@ -99,7 +99,7 @@ module.exports = {
         .setDescriptionLocalizations({
           fr: "Relancer un giveaway",
           "en-US": "Reroll a giveaway",
-          es: "Volver a sortear",
+          "es-ES": "Volver a sortear",
         })
         .addStringOption((opt) =>
           opt
@@ -108,7 +108,7 @@ module.exports = {
             .setDescriptionLocalizations({
               fr: "ID du giveaway à relancer",
               "en-US": "Giveaway ID to reroll",
-              es: "ID del sorteo a relanzar",
+              "es-ES": "ID del sorteo a relanzar",
             })
             .setRequired(true),
         ),
