@@ -111,6 +111,15 @@ export default function GuildPage() {
   const [warnsList, setWarnsList] = useState([])
   const [warnsLoading, setWarnsLoading] = useState(false)
 
+  // Données Tickets
+  const [ticketData, setTicketData] = useState({ settings: null, openTickets: [] })
+  const [ticketLoading, setTicketLoading] = useState(false)
+  const [ticketPanelChannelId, setTicketPanelChannelId] = useState("")
+  const [ticketTypesStr, setTicketTypesStr] = useState("suggestion, partenariats, problème, autre")
+  const [ticketPanelTitle, setTicketPanelTitle] = useState("🎫 Système de Ticket")
+  const [ticketPanelDesc, setTicketPanelDesc] = useState("Si tu as besoin d'aide ouvre un ticket correspondant à ta demande")
+  const [sendingTicketPanel, setSendingTicketPanel] = useState(false)
+
   function logout() {
     clearJwt()
     navigate("/login", { replace: true })
@@ -147,10 +156,16 @@ export default function GuildPage() {
         setConfig(initialCfg)
         setSavedConfigStr(JSON.stringify(initialCfg))
 
-        // Initialiser le salon par défaut de l'embed
+        // Initialiser le salon par défaut de l'embed et des tickets
         const firstTextCh = payload?.channels?.find(c => c.type === 0 || c.type === 5)
         if (firstTextCh) {
           setEmbedForm(prev => ({ ...prev, channelId: firstTextCh.id }))
+        }
+        const ticketChannel = payload?.channels?.find(c => (c.type === 0 || c.type === 5) && c.name?.toLowerCase().includes("ticket"))
+        if (ticketChannel) {
+          setTicketPanelChannelId(ticketChannel.id)
+        } else if (firstTextCh) {
+          setTicketPanelChannelId(firstTextCh.id)
         }
 
         setStatus("ready")
@@ -187,6 +202,8 @@ export default function GuildPage() {
       fetchLevels()
     } else if (activeTab === "warns" && id && token) {
       fetchWarns()
+    } else if (activeTab === "tickets" && id && token) {
+      fetchTickets()
     }
   }, [activeTab, id, token])
 
@@ -263,6 +280,96 @@ export default function GuildPage() {
         fetchWarns()
         setSaveMessage({ type: "success", text: "Avertissement révoqué avec succès !" })
         setTimeout(() => setSaveMessage(null), 3000)
+      }
+    } catch (e) {
+      alert("Erreur: " + e.message)
+    }
+  }
+
+  async function fetchTickets() {
+    setTicketLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/tickets`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setTicketData(payload)
+        if (payload?.settings) {
+          const s = payload.settings
+          setConfig(prev => ({
+            ...prev,
+            ticketEnabled: true,
+            ticketCategoryId: s.ticketCategoryId || prev?.ticketCategoryId,
+            ticketSupportRoleId: s.supportRoleId || prev?.ticketSupportRoleId,
+            ticketLogChannelId: s.logChannelId || prev?.ticketLogChannelId,
+          }))
+          if (Array.isArray(s.ticketTypes) && s.ticketTypes.length > 0) {
+            setTicketTypesStr(s.ticketTypes.join(", "))
+          }
+        }
+      }
+    } catch {
+      // Ignorer
+    } finally {
+      setTicketLoading(false)
+    }
+  }
+
+  async function handleSendTicketPanel() {
+    if (!ticketPanelChannelId) {
+      alert("Veuillez sélectionner le salon où envoyer le panneau.")
+      return
+    }
+
+    setSendingTicketPanel(true)
+    try {
+      const parsedTypes = ticketTypesStr
+        .split(",")
+        .map(t => t.trim())
+        .filter(Boolean)
+
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/tickets/send-panel`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          channelId: ticketPanelChannelId,
+          title: ticketPanelTitle,
+          description: ticketPanelDesc,
+          supportRoleId: config?.ticketSupportRoleId,
+          ticketCategoryId: config?.ticketCategoryId,
+          logChannelId: config?.ticketLogChannelId,
+          types: parsedTypes.length > 0 ? parsedTypes : ["suggestion", "partenariats", "problème", "autre"]
+        })
+      })
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error || "Échec de l'envoi du panneau sur Discord")
+      }
+
+      setSaveMessage({ type: "success", text: "Panneau de tickets déployé sur Discord !" })
+      setTimeout(() => setSaveMessage(null), 4000)
+      fetchTickets()
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSendingTicketPanel(false)
+    }
+  }
+
+  async function handleCloseTicket(channelId) {
+    if (!confirm("Voulez-vous vraiment fermer et supprimer ce salon de ticket ?")) return
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/tickets/${channelId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        fetchTickets()
       }
     } catch (e) {
       alert("Erreur: " + e.message)
@@ -1207,54 +1314,221 @@ export default function GuildPage() {
 
                 {/* Section 5 : Tickets Support */}
                 {activeTab === "tickets" && (
-                  <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
-                    <h2 className="text-lg font-bold text-white">Système de Tickets d'Assistance</h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Permet aux membres d'ouvrir des salons privés d'assistance avec l'équipe du serveur.
-                    </p>
-
-                    <div className="mt-6 space-y-4">
-                      <Toggle
-                        label="Activer le système de tickets"
-                        description="Active la gestion automatique des tickets pour votre serveur."
-                        checked={Boolean(config?.ticketEnabled)}
-                        onChange={v => updateField("ticketEnabled", v)}
-                      />
-
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <SelectField
-                          label="Catégorie Discord des tickets"
-                          description="Catégorie sous laquelle les salons de tickets seront créés."
-                          value={config?.ticketCategoryId}
-                          onChange={val => updateField("ticketCategoryId", val)}
-                          options={categoryChannels}
-                          placeholder="Sélectionner une catégorie"
-                        />
-
-                        <SelectField
-                          label="Rôle du Support"
-                          description="Rôle Discord qui aura la permission de voir et répondre dans les tickets."
-                          value={config?.ticketSupportRoleId}
-                          onChange={val => updateField("ticketSupportRoleId", val)}
-                          options={roles}
-                          placeholder="Sélectionner un rôle"
-                        />
-
-                        <SelectField
-                          label="Salon des Logs de tickets"
-                          description="Salon où les événements et fermetures de tickets seront notifiés."
-                          value={config?.ticketLogChannelId}
-                          onChange={val => updateField("ticketLogChannelId", val)}
-                          options={textChannels}
-                          placeholder="Sélectionner un salon de logs"
-                        />
+                  <div className="space-y-8">
+                    {/* Statut & Paramètres */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Système de Tickets d'Assistance</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Permet aux membres d'ouvrir des salons privés d'assistance avec l'équipe du serveur.
+                          </p>
+                        </div>
+                        {ticketData?.settings ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/30">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            Système configuré & actif
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
+                            En attente de configuration
+                          </span>
+                        )}
                       </div>
 
-                      <div className="mt-6 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-5">
-                        <h4 className="text-sm font-bold text-indigo-200">💡 Comment envoyer le panneau de ticket ?</h4>
-                        <p className="mt-1 text-xs leading-relaxed text-indigo-300/80">
-                          Une fois les paramètres ci-dessus configurés et enregistrés, vous pouvez utiliser la commande Discord <code>/ticket setup</code> ou utiliser l'onglet <strong>Embed Builder</strong> pour créer un message d'accueil pour vos membres !
-                        </p>
+                      <div className="mt-6 space-y-4">
+                        <Toggle
+                          label="Activer le système de tickets"
+                          description="Active la gestion automatique des tickets pour votre serveur."
+                          checked={Boolean(config?.ticketEnabled)}
+                          onChange={v => updateField("ticketEnabled", v)}
+                        />
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <SelectField
+                            label="Catégorie Discord des tickets"
+                            description="Catégorie sous laquelle les salons de tickets seront créés."
+                            value={config?.ticketCategoryId}
+                            onChange={val => updateField("ticketCategoryId", val)}
+                            options={categoryChannels}
+                            placeholder="Sélectionner une catégorie"
+                          />
+
+                          <SelectField
+                            label="Rôle du Support"
+                            description="Rôle Discord qui aura la permission de voir et répondre dans les tickets."
+                            value={config?.ticketSupportRoleId}
+                            onChange={val => updateField("ticketSupportRoleId", val)}
+                            options={roles}
+                            placeholder="Sélectionner un rôle"
+                          />
+
+                          <SelectField
+                            label="Salon des Logs de tickets"
+                            description="Salon où les événements et fermetures de tickets seront notifiés."
+                            value={config?.ticketLogChannelId}
+                            onChange={val => updateField("ticketLogChannelId", val)}
+                            options={textChannels}
+                            placeholder="Sélectionner un salon de logs"
+                          />
+                        </div>
+
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <label className="text-sm font-semibold text-slate-100">Types / Catégories de Tickets (séparés par des virgules)</label>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Ces options apparaîtront dans le menu déroulant du panneau Discord (ex: suggestion, partenariats, problème, autre).
+                          </p>
+                          <input
+                            type="text"
+                            value={ticketTypesStr}
+                            onChange={e => setTicketTypesStr(e.target.value)}
+                            className="mt-3 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Déploiement / Renvoyer le panneau sur Discord */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white">Déployer le Panneau Interactif sur Discord</h2>
+                      <p className="mt-1 text-sm text-slate-400">
+                        Envoyez le message d'ouverture de ticket avec son menu déroulant dans le salon de votre choix.
+                      </p>
+
+                      <div className="mt-6 grid gap-4 md:grid-cols-2">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Salon Discord où envoyer le panneau</label>
+                            <select
+                              value={ticketPanelChannelId}
+                              onChange={e => setTicketPanelChannelId(e.target.value)}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            >
+                              <option value="">Sélectionner un salon textuel...</option>
+                              {textChannels.map(ch => (
+                                <option key={ch.id} value={ch.id}>
+                                  # {ch.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Titre du panneau</label>
+                            <input
+                              type="text"
+                              value={ticketPanelTitle}
+                              onChange={e => setTicketPanelTitle(e.target.value)}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300">Description du panneau</label>
+                            <textarea
+                              rows={2}
+                              value={ticketPanelDesc}
+                              onChange={e => setTicketPanelDesc(e.target.value)}
+                              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleSendTicketPanel}
+                            disabled={sendingTicketPanel || !ticketPanelChannelId}
+                            className="w-full rounded-2xl bg-indigo-600 px-6 py-3 font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:opacity-50"
+                          >
+                            {sendingTicketPanel ? "Déploiement en cours..." : "🚀 Envoyer / Renvoyer le Panneau sur Discord"}
+                          </button>
+                        </div>
+
+                        {/* Prévisualisation */}
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            Aperçu du Panneau Discord
+                          </label>
+                          <div className="mt-2 rounded-2xl border border-white/10 bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                            <div className="flex items-center gap-3">
+                              {bot?.avatarUrl ? (
+                                <img src={bot.avatarUrl} alt="Bot" className="h-9 w-9 rounded-full" />
+                              ) : (
+                                <div className="h-9 w-9 rounded-full bg-indigo-600 grid place-items-center font-bold text-white">G</div>
+                              )}
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-white">{bot?.username || "God_Sparky"}</span>
+                                  <span className="rounded bg-[#5865f2] px-1 py-0.2 text-[10px] font-bold text-white">BOT</span>
+                                </div>
+                                <span className="text-[10px] text-[#949ba4]">Aujourd'hui à {new Date().toLocaleTimeString().slice(0, 5)}</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 rounded-lg border-l-4 border-[#0099ff] bg-[#2b2d31] p-3 text-xs">
+                              <h4 className="font-bold text-white">{ticketPanelTitle}</h4>
+                              <p className="mt-1 text-slate-300">{ticketPanelDesc}</p>
+                              <div className="mt-2 text-[10px] text-[#949ba4]">God_Sparky • Support & Assistance</div>
+                            </div>
+
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-[#1e1f22] p-2.5 text-xs text-slate-400">
+                                <span>Sélectionnez le type de ticket</span>
+                                <span>▼</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Salons de Tickets Ouverts en Direct */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Tickets Actuellement Ouverts ({ticketData?.openTickets?.length || 0})</h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Salons privés créés par les membres sous la catégorie configurée.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={fetchTickets}
+                          className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                        >
+                          Rafraîchir
+                        </button>
+                      </div>
+
+                      <div className="mt-6">
+                        {ticketData?.openTickets && ticketData.openTickets.length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {ticketData.openTickets.map(t => (
+                              <div
+                                key={t.id}
+                                className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-4 transition hover:border-white/15"
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-emerald-400 font-bold">#</span>
+                                    <span className="font-semibold text-white">{t.name}</span>
+                                  </div>
+                                  <p className="mt-1 text-[11px] font-mono text-slate-500">ID: {t.id}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCloseTicket(t.id)}
+                                  className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20"
+                                >
+                                  Fermer
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-slate-400">
+                            Aucun ticket ouvert actuellement.
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

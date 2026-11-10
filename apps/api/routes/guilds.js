@@ -122,6 +122,16 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
 
     const config = await getGuildConfig(guildId)
 
+    // Charger également les paramètres existants de tickets (collection ticketsettings)
+    const ticketDoc = await db.collection("ticketsettings").findOne({ guildId })
+    if (ticketDoc) {
+      config.ticketEnabled = true
+      config.ticketSupportRoleId = ticketDoc.supportRoleId || config.ticketSupportRoleId || null
+      config.ticketCategoryId = ticketDoc.ticketCategoryId || config.ticketCategoryId || null
+      config.ticketLogChannelId = ticketDoc.logChannelId || config.ticketLogChannelId || null
+      config.ticketTypes = Array.isArray(ticketDoc.ticketTypes) ? ticketDoc.ticketTypes : ["suggestion", "partenariats", "problème", "autre"]
+    }
+
     if (process.env.NODE_ENV !== "production") {
       console.log("[guilds] config loaded", {
         guildId,
@@ -250,6 +260,27 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     ticketSupportRoleId: cleanChannel(patch.ticketSupportRoleId),
     ticketLogChannelId: cleanChannel(patch.ticketLogChannelId),
   })
+
+  // Synchroniser également dans la collection ticketsettings pour le bot Discord
+  if (patch.ticketSupportRoleId || patch.ticketCategoryId) {
+    const db = await getDb()
+    await db.collection("ticketsettings").updateOne(
+      { guildId },
+      {
+        $set: {
+          guildId,
+          supportRoleId: cleanChannel(patch.ticketSupportRoleId),
+          ticketCategoryId: cleanChannel(patch.ticketCategoryId),
+          logChannelId: cleanChannel(patch.ticketLogChannelId) || cleanChannel(patch.ticketCategoryId),
+          ticketTypes: Array.isArray(patch.ticketTypes) && patch.ticketTypes.length > 0
+            ? patch.ticketTypes.map(t => String(t).trim()).filter(Boolean)
+            : ["suggestion", "partenariats", "problème", "autre"],
+          updatedAt: new Date()
+        }
+      },
+      { upsert: true }
+    )
+  }
 
   return res.json({ guildId, config: next })
 })
