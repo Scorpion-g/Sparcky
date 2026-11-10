@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.1.0";
+const CURRENT_VERSION = "2.2.0";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,31 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.2.0",
+    date: "10 Novembre 2026",
+    type: "MINOR",
+    githubUrl: getGitHubReleaseUrl("2.2.0"),
+    title: "Mise à Jour v2.2.0 : Jeu de Blind Test Vocal & Audio HD",
+    summary: "Introduction du mini-jeu multijoueur de Blind Test dans les salons vocaux avec /blindtest ! Profitez de 6 thèmes musicaux (Hits, Années 80/90, Rap, Disney, Bandes Originales de Films, Anime & Gaming), de réponses détectées en direct dans le chat, d'un classement en temps réel et de récompenses pour les vainqueurs.",
+    highlights: [
+      {
+        emoji: "🎮",
+        title: "Blind Test Vocal Multijoueur",
+        desc: "Lancez des parties de 5 à 20 manches avec /blindtest start dans n'importe quel salon vocal avec streaming audio haute fidélité."
+      },
+      {
+        emoji: "🎶",
+        title: "6 Thèmes Musicaux Riches",
+        desc: "Hits du moment, Années 80 & 90, Rap Français & US, Univers Disney, Cinéma & Séries, Anime & Gaming."
+      },
+      {
+        emoji: "🎯",
+        title: "Détection Intelligente & Récompenses",
+        desc: "Validation tolérante des titres et artistes saisis dans le chat, affichage des pochettes d'albums et gains en monnaie virtuelle pour le podium."
+      }
+    ]
+  },
   {
     version: "2.1.0",
     date: "10 Novembre 2026",
