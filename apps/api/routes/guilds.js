@@ -94,6 +94,27 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
       ? channelsRes.data.map(normalizeChannel).sort(sortChannels)
       : []
 
+    // 3) Rôles via bot
+    let roles = []
+    try {
+      const rolesRes = await axios.get(`https://discord.com/api/guilds/${guildId}/roles`, {
+        headers: { Authorization: `Bot ${botToken}` }
+      })
+      if (Array.isArray(rolesRes.data)) {
+        roles = rolesRes.data
+          .filter(r => r.name !== "@everyone" && !r.managed)
+          .sort((a, b) => b.position - a.position)
+          .map(r => ({
+            id: r.id,
+            name: r.name,
+            color: r.color ? `#${r.color.toString(16).padStart(6, "0")}` : null,
+            position: r.position
+          }))
+      }
+    } catch {
+      // Ignorer si manque de permissions
+    }
+
     // Debug: vérifier si un doc existe vraiment dans la collection
     const db = await getDb()
     const collectionName = process.env.BOT_GUILD_CONFIG_COLLECTION || "guildconfigurations"
@@ -128,6 +149,7 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
         status: "online"
       },
       channels,
+      roles,
       config,
       configSource: {
         db: db.databaseName,
@@ -157,6 +179,7 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
           status: "absent"
         },
         channels: [],
+        roles: [],
         config: await getGuildConfig(guildId),
         error: "Bot is not in this guild (or missing permissions)"
       })
