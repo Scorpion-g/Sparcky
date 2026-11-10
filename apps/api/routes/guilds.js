@@ -211,13 +211,15 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
       ? patch.language.replace(/[^a-zA-Z-]/g, "").toLowerCase().slice(0, 8)
       : undefined
 
+  const cleanChannel = val => (typeof val === "string" && val.trim().length > 0 ? val.trim() : null)
+
   // Whitelist
   const next = await setGuildConfig(guildId, {
-    welcomeChannel: typeof patch.welcomeChannel === "string" ? patch.welcomeChannel : null,
-    leaveChannel: typeof patch.leaveChannel === "string" ? patch.leaveChannel : null,
-    autoRole: typeof patch.autoRole === "string" ? patch.autoRole : null,
-    modLogChannel: typeof patch.modLogChannel === "string" ? patch.modLogChannel : null,
-    vocChannelId: typeof patch.vocChannelId === "string" ? patch.vocChannelId : null,
+    welcomeChannel: cleanChannel(patch.welcomeChannel),
+    leaveChannel: cleanChannel(patch.leaveChannel),
+    autoRole: cleanChannel(patch.autoRole),
+    modLogChannel: cleanChannel(patch.modLogChannel),
+    vocChannelId: cleanChannel(patch.vocChannelId),
 
     antispam: typeof patch.antispam === "boolean" ? patch.antispam : undefined,
     antilink: typeof patch.antilink === "boolean" ? patch.antilink : undefined,
