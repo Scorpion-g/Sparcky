@@ -55,6 +55,24 @@ module.exports = {
               { name: "20 manches (Marathon)", value: 20 }
             )
         )
+        .addIntegerOption((opt) =>
+          opt
+            .setName("duration")
+            .setDescription("Temps de réponse par manche en secondes")
+            .setDescriptionLocalizations({
+              fr: "Temps de réponse par manche en secondes",
+              "en-US": "Response time per round in seconds",
+              "es-ES": "Tiempo de respuesta por ronda en segundos",
+            })
+            .setRequired(false)
+            .addChoices(
+              { name: "15 secondes (Express ⚡)", value: 15 },
+              { name: "20 secondes (Rapide ⏱️)", value: 20 },
+              { name: "30 secondes (Standard 🎯)", value: 30 },
+              { name: "45 secondes (Détente ☕)", value: 45 },
+              { name: "60 secondes (Tranquille 🧘)", value: 60 }
+            )
+        )
     )
     .addSubcommand((sub) =>
       sub
@@ -83,7 +101,8 @@ module.exports = {
     if (subcommand === "start") {
       const theme = interaction.options.getString("theme") || "hits";
       const rounds = interaction.options.getInteger("rounds") || 10;
-      return startBlindTest(interaction, theme, rounds);
+      const duration = interaction.options.getInteger("duration") || 30;
+      return startBlindTest(interaction, theme, rounds, duration);
     }
 
     if (subcommand === "stop") {

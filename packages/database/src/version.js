@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.2.2";
+const CURRENT_VERSION = "2.2.3";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,26 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.2.3",
+    date: "10 Novembre 2026",
+    type: "PATCH",
+    githubUrl: getGitHubReleaseUrl("2.2.3"),
+    title: "Correctif v2.2.3 : Tolérance Intelligente des Réponses & Choix du Temps de Jeu",
+    summary: "Validation ultra-souple des réponses en cours de Blind Test (mots clés distinctifs, tolérance aux fautes de frappe et pluriels, préfixes oraux 'c'est...'), et ajout de l'option de durée personnalisée par manche (15s, 20s, 30s, 45s, 60s) dans /blindtest start.",
+    highlights: [
+      {
+        emoji: "🎯",
+        title: "Validation Souple & Fuzzy Matching",
+        desc: "Tolérance élevée aux fautes d'orthographe (Levenshtein), aux mots clés uniques (ex: 'Bruno' ou 'Jackson') et aux expressions orales ('c'est...')."
+      },
+      {
+        emoji: "⏱️",
+        title: "Temps de Réponse Personnalisable",
+        desc: "Choisissez la durée de chaque manche avec l'option duration : Express (15s), Rapide (20s), Standard (30s), Détente (45s) ou Tranquille (60s)."
+      }
+    ]
+  },
   {
     version: "2.2.2",
     date: "10 Novembre 2026",

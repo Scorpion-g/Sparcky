@@ -138,6 +138,43 @@ function extractMovieOrUniverse(track) {
 }
 
 /**
+ * Calcule la distance de Levenshtein entre deux chaînes
+ */
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = i;
+    for (let j = 1; j <= b.length; j++) {
+      const val = a[i - 1] === b[j - 1] ? row[j - 1] : Math.min(row[j - 1], prev, row[j]) + 1;
+      row[j - 1] = prev;
+      prev = val;
+    }
+    row[b.length] = prev;
+  }
+  return row[b.length];
+}
+
+/**
+ * Calcule un score de similarité entre 0 et 1
+ */
+function stringSimilarity(s1, s2) {
+  const maxLen = Math.max(s1.length, s2.length);
+  if (maxLen === 0) return 1.0;
+  return 1 - levenshtein(s1, s2) / maxLen;
+}
+
+const STOPWORDS = new Set([
+  "le", "la", "les", "l", "un", "une", "des", "de", "du", "d", "et", "en", "a", "au", "aux",
+  "the", "an", "of", "and", "in", "to", "c", "est", "cest", "ce", "je", "tu", "il", "on", "sais",
+  "crois", "pense", "dirais", "que", "qui", "oui", "non", "ah", "oh", "titre", "chanson", "artiste",
+  "film", "musique", "genre", "trop", "bien"
+]);
+
+/**
  * Nettoie une chaîne pour une comparaison tolérante
  */
 function cleanString(str) {
@@ -161,62 +198,105 @@ function stripLeadingArticle(str) {
 }
 
 /**
+ * Vérifie si la tentative d'un joueur correspond à une cible (titre, artiste, film)
+ * avec une tolérance souple (fautes de frappe, mots partiels, expressions "c'est...")
+ */
+function isTargetMatch(rawGuess, rawTarget) {
+  const guess = cleanString(rawGuess);
+  const target = cleanString(rawTarget);
+  if (!guess || !target || guess.length < 2 || target.length < 2) return false;
+
+  const targetNoArticle = stripLeadingArticle(target);
+  const guessNoArticle = stripLeadingArticle(guess);
+
+  // 1. Égalité exacte ou inclusion directe
+  if (guess === target || guess === targetNoArticle || guessNoArticle === target || guessNoArticle === targetNoArticle) {
+    return true;
+  }
+  if (guess.includes(target) || (target.length >= 4 && guess.includes(targetNoArticle))) {
+    return true;
+  }
+  if (target.includes(guess) && guess.length >= 3 && target.length <= 20) {
+    return true;
+  }
+
+  // 2. Similarité globale (tolérance fautes de frappe / pluriels / accents)
+  const sim = Math.max(
+    stringSimilarity(guess, target),
+    stringSimilarity(guessNoArticle, targetNoArticle)
+  );
+  if (sim >= 0.78 && target.length >= 4) {
+    return true;
+  }
+  if (target.length >= 3 && Math.min(guess.length, target.length) >= 3) {
+    if (levenshtein(guess, target) <= 1 || levenshtein(guessNoArticle, targetNoArticle) <= 1) {
+      return true;
+    }
+  }
+
+  // 3. Découpage en mots (N-grams et mots distinctifs)
+  const guessWords = guess.split(/\s+/).filter((w) => w.length >= 2);
+  const targetWords = target.split(/\s+/).filter((w) => w.length >= 2);
+  const significantTargetWords = targetWords.filter((w) => !STOPWORDS.has(w) && w.length >= 3);
+
+  // 3a. Mot distinctif (ex: "jackson" dans "michael jackson", "bruno" dans "ne parlons pas de bruno")
+  for (const gw of guessWords) {
+    if (STOPWORDS.has(gw) || gw.length < 3) continue;
+    for (const tw of significantTargetWords) {
+      if (gw === tw || (gw.length >= 4 && tw.length >= 4 && stringSimilarity(gw, tw) >= 0.8)) {
+        if (tw.length >= 4 || significantTargetWords.length === 1) {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 3b. Fenêtre glissante de mots (ex: "c est billie jean" -> "billie jean")
+  for (let windowSize = 2; windowSize <= Math.min(4, guessWords.length); windowSize++) {
+    for (let i = 0; i <= guessWords.length - windowSize; i++) {
+      const phrase = guessWords.slice(i, i + windowSize).join(" ");
+      if (phrase === target || phrase === targetNoArticle) return true;
+      if (stringSimilarity(phrase, target) >= 0.8 || stringSimilarity(phrase, targetNoArticle) >= 0.8) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Vérifie si une tentative correspond au titre, à l'artiste ou au film
  */
 function checkGuess(guess, track) {
-  const cleanGuess = cleanString(guess);
-  if (!cleanGuess || cleanGuess.length < 2) {
+  if (!guess || guess.trim().length < 2) {
     return { matchTitle: false, matchArtist: false, matchedMovie: false };
   }
 
   const rawTitle = track.title_short || track.title || "";
-  const cleanTitle = cleanString(rawTitle);
-  const titleNoArticle = stripLeadingArticle(cleanTitle);
-
   const rawArtist = track.artist?.name || "";
-  const cleanArtist = cleanString(rawArtist);
-  const artistNoArticle = stripLeadingArticle(cleanArtist);
-
   const rawMovie = track.movie || "";
-  const cleanMovie = cleanString(rawMovie);
-  const movieNoArticle = stripLeadingArticle(cleanMovie);
+  const cleanMovie = rawMovie ? cleanString(rawMovie) : "";
   const translatedMovie = cleanMovie ? MOVIE_TRANSLATIONS[cleanMovie] : null;
 
-  let matchTitle = false;
-  if (cleanTitle.length >= 2) {
-    if (cleanGuess === cleanTitle || cleanGuess === titleNoArticle) {
-      matchTitle = true;
-    } else if (cleanGuess.includes(cleanTitle) || (cleanGuess.length >= 3 && cleanTitle.includes(cleanGuess))) {
-      matchTitle = true;
-    } else if (titleNoArticle.length >= 3 && (cleanGuess.includes(titleNoArticle) || titleNoArticle.includes(cleanGuess))) {
-      matchTitle = true;
-    }
+  // 1. Vérification du Titre
+  let matchTitle = isTargetMatch(guess, rawTitle);
+  if (!matchTitle && track.title && track.title !== track.title_short) {
+    matchTitle = isTargetMatch(guess, track.title);
   }
 
-  let matchArtist = false;
+  // 2. Vérification de l'Artiste
+  let matchArtist = isTargetMatch(guess, rawArtist);
+
+  // 3. Vérification du Film / Univers si l'artiste n'est pas trouvé
   let matchedMovie = false;
-  if (cleanArtist.length >= 2) {
-    if (cleanGuess === cleanArtist || cleanGuess === artistNoArticle) {
+  if (!matchArtist && rawMovie) {
+    if (isTargetMatch(guess, rawMovie)) {
       matchArtist = true;
-    } else if (cleanGuess.includes(cleanArtist) || (cleanGuess.length >= 3 && cleanArtist.includes(cleanGuess))) {
+      matchedMovie = true;
+    } else if (translatedMovie && isTargetMatch(guess, translatedMovie)) {
       matchArtist = true;
-    } else if (artistNoArticle.length >= 3 && (cleanGuess.includes(artistNoArticle) || artistNoArticle.includes(cleanGuess))) {
-      matchArtist = true;
-    }
-  }
-
-  // Si l'artiste n'est pas trouvé et qu'un film/univers est associé (Disney, Cinéma...)
-  if (!matchArtist && cleanMovie && cleanMovie.length >= 3) {
-    const candidates = [cleanMovie, movieNoArticle];
-    if (translatedMovie) candidates.push(translatedMovie);
-
-    for (const cand of candidates) {
-      if (!cand || cand.length < 3) continue;
-      if (cleanGuess === cand || cleanGuess.includes(cand) || (cleanGuess.length >= 3 && cand.includes(cleanGuess))) {
-        matchArtist = true;
-        matchedMovie = true;
-        break;
-      }
+      matchedMovie = true;
     }
   }
 
@@ -298,7 +378,7 @@ async function getAudioResource(url) {
 /**
  * Démarre une nouvelle partie de Blind Test
  */
-async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) {
+async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10, roundDuration = 30) {
   const member = interaction.member;
   const voiceChannel = member.voice?.channel;
 
@@ -337,6 +417,7 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
 
   const totalRounds = Math.min(roundsCount, tracks.length);
   const selectedTracks = tracks.slice(0, totalRounds);
+  const duration = Math.min(Math.max(parseInt(roundDuration, 10) || 30, 10), 60);
 
   // Connexion au salon vocal
   let connection;
@@ -393,6 +474,7 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
     player,
     theme,
     totalRounds,
+    roundDuration: duration,
     currentRound: 1,
     tracksPool: selectedTracks,
     currentTrack: null,
@@ -411,12 +493,13 @@ async function startBlindTest(interaction, themeKey = "hits", roundsCount = 10) 
     .setDescription(
       `La partie démarre dans le vocal **${voiceChannel.name}** !\n\n` +
       `🎯 **Thème :** ${theme.emoji} **${theme.name}**\n` +
-      `🔢 **Nombre de manches :** \`${totalRounds}\`\n\n` +
+      `🔢 **Nombre de manches :** \`${totalRounds}\`\n` +
+      `⏱️ **Temps par manche :** \`${duration} secondes\`\n\n` +
       `**📜 Règles du jeu :**\n` +
-      `• Écoutez les extraits de 30 secondes diffusés dans le vocal.\n` +
+      `• Écoutez les extraits musicaux diffusés dans le vocal.\n` +
       `• Écrivez vos réponses dans **ce salon textuel** !\n` +
       `• **+1 point** pour le **Titre** trouvé.\n` +
-      `• **+1 point** pour l'**Artiste** trouvé.\n\n` +
+      `• **+1 point** pour l'**Artiste** ${themeKey === "disney" || themeKey === "cinema" || themeKey === "anime_gaming" ? "(ou le **Film / Univers**)" : ""} trouvé.\n\n` +
       `🚀 *Lancement de la première manche...*`
     )
     .setColor(0x6366f1)
@@ -461,7 +544,7 @@ async function playNextRound(game) {
     .setDescription(
       `Écoutez l'extrait musical dans le salon vocal **${game.voiceChannel.name}** !\n\n` +
       `💡 Devinez le **Titre** (+1 pt) et l'**Artiste** (+1 pt).\n` +
-      `⏱️ **Temps restant :** \`30 secondes\``
+      `⏱️ **Temps restant :** \`${game.roundDuration} secondes\``
     )
     .setColor(0x38bdf8)
     .setFooter({ text: "Tapez votre réponse directement ici !" })
@@ -473,7 +556,7 @@ async function playNextRound(game) {
   const filter = (m) => !m.author.bot;
   const collector = game.textChannel.createMessageCollector({
     filter,
-    time: 30000
+    time: game.roundDuration * 1000
   });
   game.messageCollector = collector;
 
@@ -680,5 +763,8 @@ module.exports = {
   cleanString,
   getAudioResource,
   isSpokenOrPodcast,
-  extractMovieOrUniverse
+  extractMovieOrUniverse,
+  isTargetMatch,
+  levenshtein,
+  stringSimilarity
 };

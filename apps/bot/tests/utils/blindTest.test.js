@@ -114,3 +114,40 @@ test("extractMovieOrUniverse extracts film title from track", () => {
     "Coco"
   );
 });
+
+test("checkGuess supports lenient fuzzy matching, conversational prefixes and typos", () => {
+  const track = {
+    title: "Ne parlons pas de Bruno",
+    title_short: "Ne parlons pas de Bruno",
+    artist: { name: "Sharon Laloum" },
+    movie: "Encanto"
+  };
+
+  // Titres avec préfixes oraux ou fautes légères
+  assert.equal(checkGuess("c'est bruno", track).matchTitle, true);
+  assert.equal(checkGuess("ne parle pas de bruno", track).matchTitle, true);
+  assert.equal(checkGuess("bruno", track).matchTitle, true);
+  assert.equal(checkGuess("je crois que c'est bruno", track).matchTitle, true);
+
+  // Film avec faute d'orthographe ou préfixe
+  assert.equal(checkGuess("c'est encanto", track).matchArtist, true);
+  assert.equal(checkGuess("encanto", track).matchArtist, true);
+
+  // Morceau légendaire avec fautes fréquentes
+  const track2 = {
+    title: "Billie Jean",
+    title_short: "Billie Jean",
+    artist: { name: "Michael Jackson" }
+  };
+
+  assert.equal(checkGuess("bily jean", track2).matchTitle, true);
+  assert.equal(checkGuess("c est billie jean", track2).matchTitle, true);
+  assert.equal(checkGuess("mickael jackson", track2).matchArtist, true);
+  assert.equal(checkGuess("c'est jackson", track2).matchArtist, true);
+  assert.equal(checkGuess("jackson", track2).matchArtist, true);
+
+  // Message sans rapport qui ne doit pas matcher
+  assert.equal(checkGuess("bonjour a tous", track2).matchTitle, false);
+  assert.equal(checkGuess("bonjour a tous", track2).matchArtist, false);
+  assert.equal(checkGuess("c'est nul", track2).matchTitle, false);
+});
