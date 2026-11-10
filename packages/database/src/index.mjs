@@ -9,7 +9,11 @@ export const {
   Ticket,
   User,
   Warn,
-  defaultGuildConfig
+  defaultGuildConfig,
+  CURRENT_VERSION,
+  CHANGELOGS,
+  getLatestChangelog,
+  getChangelog
 } = db;
 
 export default db;

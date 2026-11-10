@@ -230,6 +230,7 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     autoRole: cleanChannel(patch.autoRole),
     modLogChannel: cleanChannel(patch.modLogChannel),
     vocChannelId: cleanChannel(patch.vocChannelId),
+    announcementChannel: cleanChannel(patch.announcementChannel),
 
     antispam: typeof patch.antispam === "boolean" ? patch.antispam : undefined,
     antilink: typeof patch.antilink === "boolean" ? patch.antilink : undefined,

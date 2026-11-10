@@ -812,6 +812,15 @@ export default function GuildPage() {
                           onChange={val => updateField("vocChannelId", val)}
                           options={voiceChannels}
                         />
+
+                        <SelectField
+                          label="Salon d'Annonces & Mises à Jour du Bot"
+                          description="Où recevoir automatiquement les annonces de nouveautés et mises à jour majeures de God_Sparky."
+                          value={config?.announcementChannel}
+                          onChange={val => updateField("announcementChannel", val)}
+                          options={[{ id: "", name: "Détection automatique intelligente (recommandé)" }, ...textChannels]}
+                          placeholder="Détection automatique"
+                        />
                       </div>
                     </div>
 

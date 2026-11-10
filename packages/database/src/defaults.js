@@ -13,6 +13,8 @@ function defaultGuildConfig() {
     antiRaid: false,
     language: "fr",
     vocChannelId: null,
+    announcementChannel: null,
+    lastAnnouncedVersion: null,
 
     // Economie
     economyEnabled: true,

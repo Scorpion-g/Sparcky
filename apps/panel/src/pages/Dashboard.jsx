@@ -13,6 +13,31 @@ export default function Dashboard() {
   const [data, setData] = useState(null)
   const [search, setSearch] = useState("")
   const [activeTab, setActiveTab] = useState("admin") // "admin" | "with_bot" | "to_invite" | "all"
+  const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [broadcastResult, setBroadcastResult] = useState(null)
+
+  async function handleBroadcast() {
+    if (!window.confirm("Diffuser l'annonce officielle v2.0.0 sur TOUS les serveurs où le bot est connecté ?")) return
+    setBroadcastLoading(true)
+    setBroadcastResult(null)
+    try {
+      const res = await fetch("/api/admin/broadcast-update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ version: "2.0.0", force: true })
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error || "Échec de la diffusion")
+      setBroadcastResult(payload)
+    } catch (err) {
+      alert("Erreur de diffusion : " + err.message)
+    } finally {
+      setBroadcastLoading(false)
+    }
+  }
 
   function logout() {
     clearJwt()
@@ -183,6 +208,62 @@ export default function Dashboard() {
               <span className="font-bold text-emerald-100">{stats.withBotCount}</span>
             </div>
           </div>
+        </div>
+
+        {/* Bannière de Versioning & Diffusion Globale */}
+        <div className="mb-8 rounded-3xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-purple-950/30 p-5 backdrop-blur-xl sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600/20 text-indigo-400 ring-1 ring-indigo-500/30">
+                📢
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white">Mise à Jour Majeure v2.0.0 Prête</h3>
+                  <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    Système Automatisé
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-300">
+                  Diffusez l'annonce officielle de la mise à jour (Panel Web, Économie, Niveaux, Tickets) sur <strong>tous les {allGuilds.filter(g => g.botInGuild).length} serveurs connectés</strong> en un clic.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleBroadcast}
+              disabled={broadcastLoading}
+              className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 disabled:opacity-50 transition"
+            >
+              {broadcastLoading ? "Diffusion en cours..." : "Diffuser la MAJ sur tous les serveurs 🚀"}
+            </button>
+          </div>
+
+          {/* Résultat de la diffusion */}
+          {broadcastResult && (
+            <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs">
+              <div className="flex items-center justify-between text-emerald-300 font-bold mb-2">
+                <span>✅ Diffusion terminée : {broadcastResult.sentCount}/{broadcastResult.totalGuilds} serveurs notifiés avec succès</span>
+                <button onClick={() => setBroadcastResult(null)} className="text-slate-400 hover:text-white">✕</button>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                {broadcastResult.details?.map(d => (
+                  <span
+                    key={d.guildId}
+                    className={`rounded-lg px-2.5 py-1 font-medium ${
+                      d.status === "sent"
+                        ? "bg-emerald-500/20 text-emerald-200"
+                        : d.status === "skipped"
+                        ? "bg-amber-500/20 text-amber-200"
+                        : "bg-rose-500/20 text-rose-200"
+                    }`}
+                  >
+                    {d.status === "sent" ? `✓ ${d.guildName} (#${d.channelName})` : `${d.guildName} (${d.reason})`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Barre de filtres et recherche */}

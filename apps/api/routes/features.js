@@ -1,6 +1,7 @@
 import express from "express"
 import { authenticate } from "../middlewares/auth.js"
 import { getDb } from "../lib/mongo.js"
+import { CURRENT_VERSION, getChangelog } from "@sparcky/database"
 import axios from "axios"
 
 const router = express.Router()
@@ -288,6 +289,130 @@ router.post("/guilds/:guildId/moderation/warns/:userId/revoke", authenticate, as
   } catch (err) {
     console.error("POST /api/guilds/:guildId/moderation/warns/:userId/revoke error:", err)
     return res.status(500).json({ error: "Impossible de révoquer l'avertissement" })
+  }
+})
+
+// ==========================================
+// MODULE 6 : VERSIONING & DIFFUSION GLOBALE
+// ==========================================
+router.get("/version", (_req, res) => {
+  return res.json({
+    version: CURRENT_VERSION,
+    changelog: getChangelog()
+  })
+})
+
+router.post("/admin/broadcast-update", authenticate, async (req, res) => {
+  const { version = CURRENT_VERSION, force = false } = req.body || {}
+  const token = getBotToken()
+  if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant" })
+
+  try {
+    const db = await getDb()
+
+    // 1. Récupérer toutes les guildes où le bot est connecté
+    const botGuildsRes = await axios.get("https://discord.com/api/users/@me/guilds", {
+      headers: { Authorization: `Bot ${token}` }
+    })
+    const guilds = botGuildsRes.data || []
+
+    const release = getChangelog(version)
+    const embed = {
+      title: `📢 ${release.title}`,
+      description: `${release.summary}\n\n**🌐 Accéder au Panel de Gestion :**\n👉 [sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)\n\n──────────────────────────────`,
+      color: 0x6366f1,
+      fields: release.highlights.map(h => ({
+        name: `${h.emoji} ${h.title}`,
+        value: h.desc,
+        inline: false
+      })),
+      footer: {
+        text: `God_Sparky v${release.version} • ${release.date} • Système de Versioning Automatique`
+      },
+      timestamp: new Date().toISOString()
+    }
+
+    const results = {
+      version,
+      totalGuilds: guilds.length,
+      sentCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+      details: []
+    }
+
+    for (const g of guilds) {
+      try {
+        const guildConfig = await db.collection("guildconfigurations").findOne({ guildId: g.id })
+
+        if (!force && guildConfig?.lastAnnouncedVersion === version) {
+          results.skippedCount++
+          results.details.push({ guildId: g.id, guildName: g.name, status: "skipped", reason: `Déjà diffusé (v${version})` })
+          continue
+        }
+
+        // Récupérer les salons de la guilde
+        const chRes = await axios.get(`https://discord.com/api/guilds/${g.id}/channels`, {
+          headers: { Authorization: `Bot ${token}` }
+        })
+        const channels = Array.isArray(chRes.data) ? chRes.data : []
+
+        // Trouver le meilleur salon
+        let targetChannel = null
+        if (guildConfig?.announcementChannel) {
+          targetChannel = channels.find(c => c.id === guildConfig.announcementChannel && c.type === 0)
+        }
+
+        if (!targetChannel) {
+          const preferredNames = ["annonces", "annonce", "news", "mises-a-jour", "general", "général", "discussion", "chat"]
+          targetChannel = channels.find(c => c.type === 0 && preferredNames.some(p => c.name?.toLowerCase().includes(p)))
+        }
+
+        if (!targetChannel) {
+          const blacklisted = ["ticket", "log", "mod", "admin", "staff", "cmd", "bot-test"]
+          targetChannel = channels.find(c => c.type === 0 && !blacklisted.some(b => c.name?.toLowerCase().includes(b)))
+        }
+
+        if (!targetChannel) {
+          targetChannel = channels.find(c => c.type === 0)
+        }
+
+        if (!targetChannel) {
+          results.failedCount++
+          results.details.push({ guildId: g.id, guildName: g.name, status: "failed", reason: "Aucun salon textuel trouvé" })
+          continue
+        }
+
+        await axios.post(
+          `https://discord.com/api/channels/${targetChannel.id}/messages`,
+          { embeds: [embed] },
+          { headers: { Authorization: `Bot ${token}` } }
+        )
+
+        await db.collection("guildconfigurations").updateOne(
+          { guildId: g.id },
+          { $set: { lastAnnouncedVersion: version, updatedAt: new Date() } },
+          { upsert: true }
+        )
+
+        results.sentCount++
+        results.details.push({
+          guildId: g.id,
+          guildName: g.name,
+          channelId: targetChannel.id,
+          channelName: targetChannel.name,
+          status: "sent"
+        })
+      } catch (gErr) {
+        results.failedCount++
+        results.details.push({ guildId: g.id, guildName: g.name, status: "failed", reason: gErr?.response?.data?.message || gErr.message })
+      }
+    }
+
+    return res.json({ success: true, ...results })
+  } catch (err) {
+    console.error("POST /api/admin/broadcast-update error:", err)
+    return res.status(500).json({ error: "Échec de la diffusion globale" })
   }
 })
 

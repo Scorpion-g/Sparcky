@@ -14,6 +14,8 @@ const guildConfigSchema = new mongoose.Schema({
   antiRaid: { type: Boolean, default: false },
   language: { type: String, default: "fr" },
   vocChannelId: { type: String, default: null },
+  announcementChannel: { type: String, default: null },
+  lastAnnouncedVersion: { type: String, default: null },
 
   // --- Economie ---
   economyEnabled: { type: Boolean, default: true },
