@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
 
-const API_BASE_URL = "http://localhost:3001"
+const API_BASE_URL = ""
 
 const DISCORD_PERM_ADMINISTRATOR = 1n << 3n
 

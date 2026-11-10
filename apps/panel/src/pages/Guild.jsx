@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
 
-const API_BASE_URL = "http://localhost:3001"
+const API_BASE_URL = ""
 
 function Pill({ tone = "neutral", children }) {
   const cls =
