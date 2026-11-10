@@ -42,6 +42,40 @@ function buildReleaseEmbed(version = CURRENT_VERSION, client = null) {
   return embed;
 }
 
+function cleanChannelName(str = "") {
+  return String(str || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function isBlacklistedChannel(name = "") {
+  const cl = cleanChannelName(name);
+  const blacklisted = [
+    "reglement", "regle", "rule", "charte", "loi",
+    "bienvenue", "welcome", "arrivee", "depart", "leave",
+    "ticket", "log", "mod", "admin", "staff", "sanction", "warn",
+    "bot", "cmd", "test", "spam",
+    "role", "grade", "autorole", "reaction",
+    "faq", "info", "partenaire", "partenariat", "partner",
+    "vocal", "voice", "boost", "nitro",
+    "media", "photo", "image", "clip", "video", "meme"
+  ];
+  return blacklisted.some(b => cl.includes(b));
+}
+
+function isAnnouncementChannel(name = "") {
+  const cl = cleanChannelName(name);
+  const preferred = ["annonce", "news", "miseajour", "misesajour", "update"];
+  return preferred.some(p => cl.includes(p));
+}
+
+function isDiscussionChannel(name = "") {
+  const cl = cleanChannelName(name);
+  const preferred = ["general", "discussion", "chat", "conversation", "communaute", "blabla", "principal"];
+  return preferred.some(p => cl.includes(p));
+}
+
 /**
  * Recherche le salon optimal pour diffuser l'annonce sur un serveur
  */
@@ -65,37 +99,38 @@ function findTargetChannel(guild, guildConfig) {
     if (canSendIn(ch)) return ch;
   }
 
-  // 2. Salon système officiel Discord du serveur
-  if (canSendIn(guild.systemChannel)) {
+  // 2. Salon d'annonces dédié (non blacklisté)
+  const annCh = guild.channels.cache.find(
+    (c) => canSendIn(c) && isAnnouncementChannel(c.name) && !isBlacklistedChannel(c.name)
+  );
+  if (annCh) return annCh;
+
+  // 3. Salon système officiel Discord du serveur (si non blacklisté)
+  if (guild.systemChannel && canSendIn(guild.systemChannel) && !isBlacklistedChannel(guild.systemChannel.name)) {
     return guild.systemChannel;
   }
 
-  // 3. Salon officiel des mises à jour de communauté Discord
-  if (canSendIn(guild.publicUpdatesChannel)) {
+  // 4. Salon général / discussion principal (non blacklisté)
+  const discCh = guild.channels.cache.find(
+    (c) => canSendIn(c) && isDiscussionChannel(c.name) && !isBlacklistedChannel(c.name)
+  );
+  if (discCh) return discCh;
+
+  // 5. N'importe quel salon textuel public valide NON blacklisté
+  const validCandidate = guild.channels.cache.find(
+    (c) => canSendIn(c) && !isBlacklistedChannel(c.name)
+  );
+  if (validCandidate) return validCandidate;
+
+  // 6. Salon de mises à jour de communauté Discord
+  if (guild.publicUpdatesChannel && canSendIn(guild.publicUpdatesChannel) && !isBlacklistedChannel(guild.publicUpdatesChannel.name)) {
     return guild.publicUpdatesChannel;
   }
 
-  // 4. Salons favoris par nom (annonces, news, general, discussion)
-  const preferredNames = ["annonces", "annonce", "news", "mises-a-jour", "general", "général", "discussion", "chat"];
-  for (const name of preferredNames) {
-    const ch = guild.channels.cache.find(
-      (c) => c.name.toLowerCase().includes(name) && canSendIn(c)
-    );
-    if (ch) return ch;
-  }
-
-  // 5. N'importe quel salon textuel public valide (non-ticket, non-log, non-staff)
-  const blacklistedTerms = ["ticket", "log", "mod", "admin", "staff", "sanction", "bot-test", "spam", "cmd", "commandes"];
-  const candidate = guild.channels.cache.find((c) => {
-    if (!canSendIn(c)) return false;
-    const lowerName = c.name.toLowerCase();
-    return !blacklistedTerms.some((term) => lowerName.includes(term));
-  });
-
-  if (candidate) return candidate;
-
-  // 6. Dernier recours : premier salon textuel avec permissions d'envoi
-  return guild.channels.cache.find(canSendIn) || null;
+  // 7. Dernier recours strict : exclure impérativement les règlements et les logs
+  return guild.channels.cache.find(
+    (c) => canSendIn(c) && !cleanChannelName(c.name).includes("regle") && !cleanChannelName(c.name).includes("rule") && !cleanChannelName(c.name).includes("log")
+  ) || null;
 }
 
 /**

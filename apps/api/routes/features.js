@@ -691,6 +691,62 @@ router.get("/version", async (_req, res) => {
   })
 })
 
+function cleanChannelName(str = "") {
+  return String(str || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+}
+
+function isBlacklistedChannel(name = "") {
+  const cl = cleanChannelName(name)
+  const blacklisted = [
+    "reglement", "regle", "rule", "charte", "loi",
+    "bienvenue", "welcome", "arrivee", "depart", "leave",
+    "ticket", "log", "mod", "admin", "staff", "sanction", "warn",
+    "bot", "cmd", "test", "spam",
+    "role", "grade", "autorole", "reaction",
+    "faq", "info", "partenaire", "partenariat", "partner",
+    "vocal", "voice", "boost", "nitro",
+    "media", "photo", "image", "clip", "video", "meme"
+  ]
+  return blacklisted.some(b => cl.includes(b))
+}
+
+function isAnnouncementChannel(name = "") {
+  const cl = cleanChannelName(name)
+  const preferred = ["annonce", "news", "miseajour", "misesajour", "update"]
+  return preferred.some(p => cl.includes(p))
+}
+
+function isDiscussionChannel(name = "") {
+  const cl = cleanChannelName(name)
+  const preferred = ["general", "discussion", "chat", "conversation", "communaute", "blabla", "principal"]
+  return preferred.some(p => cl.includes(p))
+}
+
+function findBestTextChannel(channels = [], preferredChannelId = null) {
+  if (preferredChannelId) {
+    const ch = channels.find(c => c.id === preferredChannelId && (c.type === 0 || c.type === 5))
+    if (ch) return ch
+  }
+
+  // 1. Salons dédiés aux annonces (non blacklistés)
+  const annCh = channels.find(c => (c.type === 0 || c.type === 5) && isAnnouncementChannel(c.name) && !isBlacklistedChannel(c.name))
+  if (annCh) return annCh
+
+  // 2. Salons de discussion / général (non blacklistés)
+  const discCh = channels.find(c => (c.type === 0 || c.type === 5) && isDiscussionChannel(c.name) && !isBlacklistedChannel(c.name))
+  if (discCh) return discCh
+
+  // 3. N'importe quel salon textuel non blacklisté
+  const anyValid = channels.find(c => (c.type === 0 || c.type === 5) && !isBlacklistedChannel(c.name))
+  if (anyValid) return anyValid
+
+  // 4. Dernier recours strict : exclure impérativement les règlements et les logs
+  return channels.find(c => (c.type === 0 || c.type === 5) && !cleanChannelName(c.name).includes("regle") && !cleanChannelName(c.name).includes("rule") && !cleanChannelName(c.name).includes("log")) || null
+}
+
 router.post("/admin/broadcast-update", authenticate, async (req, res) => {
   const BOT_OWNER_IDS = ["857574003162349588", "313768826477150218"]
   if (process.env.OWNER_ID) BOT_OWNER_IDS.push(process.env.OWNER_ID)
@@ -780,28 +836,11 @@ router.post("/admin/broadcast-update", authenticate, async (req, res) => {
         const channels = Array.isArray(chRes.data) ? chRes.data : []
 
         // Trouver le meilleur salon
-        let targetChannel = null
-        if (guildConfig?.announcementChannel) {
-          targetChannel = channels.find(c => c.id === guildConfig.announcementChannel && c.type === 0)
-        }
-
-        if (!targetChannel) {
-          const preferredNames = ["annonces", "annonce", "news", "mises-a-jour", "general", "général", "discussion", "chat"]
-          targetChannel = channels.find(c => c.type === 0 && preferredNames.some(p => c.name?.toLowerCase().includes(p)))
-        }
-
-        if (!targetChannel) {
-          const blacklisted = ["ticket", "log", "mod", "admin", "staff", "cmd", "bot-test"]
-          targetChannel = channels.find(c => c.type === 0 && !blacklisted.some(b => c.name?.toLowerCase().includes(b)))
-        }
-
-        if (!targetChannel) {
-          targetChannel = channels.find(c => c.type === 0)
-        }
+        const targetChannel = findBestTextChannel(channels, guildConfig?.announcementChannel)
 
         if (!targetChannel) {
           results.failedCount++
-          results.details.push({ guildId: g.id, guildName: g.name, status: "failed", reason: "Aucun salon textuel trouvé" })
+          results.details.push({ guildId: g.id, guildName: g.name, status: "failed", reason: "Aucun salon textuel valide trouvé" })
           continue
         }
 
@@ -888,9 +927,7 @@ router.post("/webhooks/github", async (req, res) => {
               headers: { Authorization: `Bot ${token}` }
             })
             const channels = Array.isArray(chRes.data) ? chRes.data : []
-            let targetChannel = guildConfig?.announcementChannel ? channels.find(c => c.id === guildConfig.announcementChannel && c.type === 0) : null
-            if (!targetChannel) targetChannel = channels.find(c => c.type === 0 && ["annonces", "annonce", "news", "general"].some(p => c.name?.toLowerCase().includes(p)))
-            if (!targetChannel) targetChannel = channels.find(c => c.type === 0)
+            const targetChannel = findBestTextChannel(channels, guildConfig?.announcementChannel)
             if (!targetChannel) continue
 
             await axios.post(
