@@ -1,14 +1,20 @@
-require('dotenv').config();
-const { Client, IntentsBitField,Options } = require('discord.js');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Charge en priorité le .env de apps/bot puis celui de la racine
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
+
+const { Client, IntentsBitField, Options } = require('discord.js');
 const mongoose = require('mongoose');
 const eventHandler = require('./handlers/eventHandler');
 const logger = require('./utils/logger');
 const { initI18n } = require('./utils/i18n');
 
-const express= require("express");
+const express = require("express");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.BOT_PORT || process.env.PORT || 3000;
 
 // Petit état interne pour la readiness
 let discordReady = false;
@@ -20,7 +26,15 @@ app.get("/readyz", (req, res) => {
   return res.status(503).send("not-ready");
 });
 
-app.listen(port, () => console.log(`Healthcheck server running on port ${port}`));
+const server = app.listen(port, () => console.log(`Healthcheck server running on port ${port}`));
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.warn(`Port ${port} déjà utilisé pour le healthcheck, tentative sur le port ${Number(port) + 1}...`);
+    app.listen(Number(port) + 1, () => console.log(`Healthcheck server running on port ${Number(port) + 1}`));
+  } else {
+    logger.error(`Erreur healthcheck server: ${err.message}`);
+  }
+});
 
 // Gestion des erreurs globales
 process.on("unhandledRejection", (reason) => {

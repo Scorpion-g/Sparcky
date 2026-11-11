@@ -11,14 +11,19 @@ module.exports = {
       // Récupérer toutes les commandes locales (dans ton code)
       const localCommands = getLocalCommands();
 
-      // Récupérer les commandes du serveur test (rapide pour dev)
-      const guildCommands = await getApplicationCommands(client, testServer);
+      // Charger immédiatement toutes les commandes locales dans le client
+      for (const cmd of localCommands) {
+        if (cmd.data?.name) {
+          client.commands.set(cmd.data.name, cmd);
+        }
+      }
 
-      // Récupérer les commandes globales (partout sur Discord)
-      const globalCommands = client.application.commands;
+      const isDev = process.env.NODE_ENV !== "production" || process.env.DEV_MODE === "true";
 
       // Fonction générique de synchro
       async function syncCommands(applicationCommands, scope = "global") {
+        if (!applicationCommands) return;
+
         // --- Supprimer les commandes sur Discord qui n'existent plus localement ---
         for (const appCommand of applicationCommands.cache.values()) {
           const existsLocally = localCommands.some(
@@ -28,7 +33,6 @@ module.exports = {
           if (!existsLocally) {
             await applicationCommands.delete(appCommand.id);
             logger.info(`🗑️ Commande supprimée (${scope}): ${appCommand.name}`);
-            client.commands.delete(appCommand.name);
           }
         }
 
@@ -56,9 +60,6 @@ module.exports = {
 
           try {
             if (existingCommand) {
-              // IMPORTANT: les commandes contextuelles (type 2/3) n'ont pas `description/options`
-              // côté API discord.js, ce qui faisait crasher `areCommandsDifferent`.
-              // On garde une politique simple: on les met à jour à chaque fois.
               if (commandData.type === 2 || commandData.type === 3) {
                 await applicationCommands.edit(existingCommand.id, commandData);
                 logger.info(
@@ -74,13 +75,10 @@ module.exports = {
               await applicationCommands.create(commandData);
               logger.info(`✨ Commande créée (${scope}): "${commandData.name}"`);
             }
-
-            client.commands.set(commandData.name, localCommand);
           } catch (err) {
             const msg = `❌ Erreur sync commande (${scope}) name="${commandData.name}" type=${commandData.type}: ${err?.message || err}`;
             logger.error(msg);
             if (process.env.DEBUG_COMMAND_SYNC === "1") {
-              // Winston peut ne pas sortir en console selon la config, donc on force aussi la sortie console.
               console.error(msg);
               try {
                 const payload = JSON.stringify(commandData, null, 2);
@@ -97,13 +95,25 @@ module.exports = {
         }
       }
 
-      // Synchro serveur test
-      await syncCommands(guildCommands, "guild");
+      // Synchro serveur test (instantané pour le développement)
+      if (testServer) {
+        try {
+          const guildCommands = await getApplicationCommands(client, testServer);
+          await syncCommands(guildCommands, "guild");
+        } catch (guildErr) {
+          logger.warn(`Impossible de synchroniser les commandes du serveur test (${testServer}): ${guildErr.message}`);
+        }
+      }
 
-      // Synchro globales (⚠️ prend parfois 1h à se propager sur Discord)
-      await syncCommands(globalCommands, "global");
+      // Synchro globales (en prod ou si explicitement demandé)
+      if (!isDev || process.env.SYNC_GLOBAL === "true") {
+        const globalCommands = await getApplicationCommands(client);
+        await syncCommands(globalCommands, "global");
+      } else {
+        logger.info("ℹ️ Mode dev actif : synchronisation globale ignorée (commandes actives immédiatement sur le serveur test).");
+      }
 
-      logger.info("✅ Synchronisation complète des commandes terminée.");
+      logger.info("✅ Synchronisation des commandes terminée.");
     } catch (error) {
       logger.error("❌ Erreur lors de la synchronisation des commandes:", error);
     }

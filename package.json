@@ -12,6 +12,8 @@
     "dev:bot": "npm run dev --workspace @sparcky/bot",
     "dev:api": "npm run dev --workspace @sparcky/api",
     "dev:panel": "npm run dev --workspace @sparcky/panel",
+    "bot:test": "node apps/bot/src/index.js",
+    "bot:check": "node apps/bot/scripts/verify-commands.js",
     "build": "npm run build --workspace @sparcky/panel",
     "lint": "npm run lint --workspace @sparcky/bot && npm run lint --workspace @sparcky/panel",
     "test": "npm run test --workspace @sparcky/bot"

@@ -1,6 +1,8 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
+const logger = require("../../utils/logger");
+const { COLORS } = require("../../utils/theme");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,54 +26,73 @@ module.exports = {
    */
   async execute(interaction) {
     if (!interaction.inGuild()) {
+      const guildOnlyMsg = (await interaction.t?.("ERRORS.GUILD_ONLY")) || "Cette commande doit être exécutée sur un serveur.";
       await interaction.reply({
-        content: await interaction.t("ERRORS.GUILD_ONLY"),
+        content: guildOnlyMsg,
         ephemeral: true,
       });
       return;
     }
 
-    const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
-    if (guildConfig && guildConfig.economyEnabled === false) {
-      return interaction.reply({
-        content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
-        ephemeral: true,
+    try {
+      const guildConfig = await GuildConfiguration.findOne({ guildId: interaction.guild.id }).lean();
+      if (guildConfig && guildConfig.economyEnabled === false) {
+        return interaction.reply({
+          content: "❌ Le système d'économie est actuellement désactivé sur ce serveur.",
+          ephemeral: true,
+        });
+      }
+
+      await interaction.deferReply();
+
+      const targetUser = interaction.options.getUser("user") || interaction.user;
+      const targetUserId = targetUser.id;
+      const isSelf = targetUserId === interaction.user.id;
+
+      const currencySymbol = guildConfig?.currencySymbol || "$";
+      const currencyName = guildConfig?.currencyName || "Coins";
+
+      const user = await User.findOne({
+        userId: targetUserId,
+        guildId: interaction.guild.id,
       });
+
+      const balance = user ? (user.balance || 0) : 0;
+      const targetMember = interaction.options.getMember("user")
+        || (isSelf ? interaction.member : null)
+        || await interaction.guild.members.fetch(targetUserId).catch(() => null);
+
+      const displayName = targetMember?.displayName || targetUser.displayName || targetUser.username;
+      const avatarURL = targetMember?.displayAvatarURL?.() || targetUser.displayAvatarURL();
+
+      const authorObj = { name: displayName };
+      if (avatarURL) {
+        authorObj.iconURL = avatarURL;
+      }
+
+      const description = isSelf
+        ? `Vous possédez actuellement **${balance} ${currencySymbol}**.`
+        : `<@${targetUserId}> possède actuellement **${balance} ${currencySymbol}**.`;
+
+      const embed = new EmbedBuilder()
+        .setColor(COLORS?.PRIMARY || "#6366F1")
+        .setAuthor(authorObj)
+        .setTitle(`💰 Solde ${currencyName}`)
+        .setDescription(description)
+        .addFields(
+          { name: "Articles possédés", value: `${user?.items?.length || 0} article(s)`, inline: true }
+        )
+        .setTimestamp();
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      logger.error(`Erreur commande /money: ${error.stack || error}`);
+      const errorMsg = (await interaction.t?.("ERRORS.COMMAND_FAILED")) || "Une erreur est survenue lors de l'exécution de cette commande.";
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: errorMsg, embeds: [] }).catch(() => {});
+      } else {
+        await interaction.reply({ content: errorMsg, ephemeral: true }).catch(() => {});
+      }
     }
-
-    const targetUserId =
-      interaction.options.get("user")?.value || interaction.member.id;
-
-    await interaction.deferReply();
-
-    const currencySymbol = guildConfig?.currencySymbol || "$";
-    const currencyName = guildConfig?.currencyName || "Coins";
-
-    const user = await User.findOne({
-      userId: targetUserId,
-      guildId: interaction.guild.id,
-    });
-
-    const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
-    const balance = user ? (user.balance || 0) : 0;
-
-    const embed = new EmbedBuilder()
-      .setColor("#6366F1")
-      .setAuthor({
-        name: targetMember?.user?.tag || `Utilisateur ${targetUserId}`,
-        iconURL: targetMember?.user?.displayAvatarURL() || null
-      })
-      .setTitle(`💰 Solde ${currencyName}`)
-      .setDescription(
-        targetUserId === interaction.member.id
-          ? `Vous possédez actuellement **${balance} ${currencySymbol}**.`
-          : `<@${targetUserId}> possède actuellement **${balance} ${currencySymbol}**.`
-      )
-      .addFields(
-        { name: "Articles possédés", value: `${user?.items?.length || 0} article(s)`, inline: true }
-      )
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [embed] });
   },
 };
