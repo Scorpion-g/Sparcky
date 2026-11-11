@@ -8,7 +8,13 @@ const {
   NoSubscriberBehavior
 } = require("@discordjs/voice");
 const { Readable } = require("stream");
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const {
+  EmbedBuilder,
+  PermissionFlagsBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const logger = require("./logger");
 const User = require("../models/User");
 const GuildConfiguration = require("../models/GuildConfiguration");
@@ -683,10 +689,10 @@ async function finishGame(game) {
       if (economyEnabled && idx < 3) {
         const coinAmount = rewards[idx];
         extraReward = ` (+${coinAmount} 🪙)`;
-        // Créditer les pièces en BDD
+        // Créditer les pièces en BDD (balance)
         User.findOneAndUpdate(
           { guildId: game.guildId, userId: s.user.id },
-          { $inc: { money: coinAmount } },
+          { $inc: { balance: coinAmount } },
           { upsert: true }
         ).catch(() => {});
       }
@@ -694,6 +700,25 @@ async function finishGame(game) {
       return `${medal} **${s.user.username}** — **${s.score} point(s)**${extraReward}`;
     }).join("\n");
   }
+
+  const clientId =
+    game.textChannel?.client?.user?.id ||
+    process.env.CLIENT_ID ||
+    "1275197373580050604";
+  const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=8&scope=bot%20applications.commands`;
+
+  const promoRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("Inviter Sparcky sur votre serveur")
+      .setStyle(ButtonStyle.Link)
+      .setURL(inviteUrl)
+      .setEmoji("➕"),
+    new ButtonBuilder()
+      .setLabel("Voter (Top.gg)")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://top.gg/bot/${clientId}/vote`)
+      .setEmoji("⭐")
+  );
 
   const finalEmbed = new EmbedBuilder()
     .setTitle(`🏆 RÉSULTAT DU BLIND TEST : ${game.theme.name}`)
@@ -706,7 +731,7 @@ async function finishGame(game) {
     .setFooter({ text: "God_Sparky Blind Test • Relancez une partie avec /blindtest start !" })
     .setTimestamp();
 
-  await game.textChannel.send({ embeds: [finalEmbed] }).catch(() => {});
+  await game.textChannel.send({ embeds: [finalEmbed], components: [promoRow] }).catch(() => {});
   logger.info(`[BLINDTEST] Partie terminée sur ${game.guildId} (${game.totalRounds} manches)`);
 }
 

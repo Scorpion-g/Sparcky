@@ -1,4 +1,10 @@
-const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
+const {
+  SlashCommandBuilder,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} = require("discord.js");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
@@ -82,9 +88,22 @@ module.exports = {
         .addFields(
           { name: "Articles possédés", value: `${user?.items?.length || 0} article(s)`, inline: true }
         )
+        .setFooter({ text: "💡 Astuce : Utilisez /vote toutes les 12h pour gagner 1 000 pièces et 500 XP !" })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [embed] });
+      const clientId =
+        interaction.client?.user?.id ||
+        process.env.CLIENT_ID ||
+        "1275197373580050604";
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("Gagner des pièces (/vote)")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://top.gg/bot/${clientId}/vote`)
+          .setEmoji("⭐")
+      );
+
+      await interaction.editReply({ embeds: [embed], components: [row] });
     } catch (error) {
       logger.error(`Erreur commande /money: ${error.stack || error}`);
       const errorMsg = (await interaction.t?.("ERRORS.COMMAND_FAILED")) || "Une erreur est survenue lors de l'exécution de cette commande.";

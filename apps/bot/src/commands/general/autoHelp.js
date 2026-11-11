@@ -1,6 +1,8 @@
 const {
   SlashCommandBuilder,
   ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   StringSelectMenuBuilder,
   ComponentType,
 } = require("discord.js");
@@ -126,6 +128,27 @@ function buildSelectMenu(activeId = "home") {
     ]);
 
   return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+function buildQuickLinksRow(clientId) {
+  const effectiveId = clientId || process.env.CLIENT_ID || "1275197373580050604";
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("Inviter Sparcky")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://discord.com/oauth2/authorize?client_id=${effectiveId}&permissions=8&scope=bot%20applications.commands`)
+      .setEmoji("➕"),
+    new ButtonBuilder()
+      .setLabel("Dashboard Web")
+      .setStyle(ButtonStyle.Link)
+      .setURL("https://sparcky.matteoriviere.fr")
+      .setEmoji("🌐"),
+    new ButtonBuilder()
+      .setLabel("Voter (Top.gg)")
+      .setStyle(ButtonStyle.Link)
+      .setURL(`https://top.gg/bot/${effectiveId}/vote`)
+      .setEmoji("⭐")
+  );
 }
 
 function buildHomeEmbed(categoryCounts, totalCommands) {
@@ -254,10 +277,11 @@ module.exports = {
       const totalCommands = commands.size;
       const homeEmbed = buildHomeEmbed(categoryCounts, totalCommands);
       const row = buildSelectMenu("home");
+      const quickLinks = buildQuickLinksRow(interaction.client.user?.id);
 
       const response = await interaction.reply({
         embeds: [homeEmbed],
-        components: [row],
+        components: [row, quickLinks],
         ephemeral: true,
       });
 
@@ -280,7 +304,7 @@ module.exports = {
         if (selectedValue === "home") {
           return selectInteraction.update({
             embeds: [homeEmbed],
-            components: [buildSelectMenu("home")],
+            components: [buildSelectMenu("home"), quickLinks],
           });
         }
 
@@ -288,7 +312,7 @@ module.exports = {
         if (!targetCat) {
           return selectInteraction.update({
             embeds: [homeEmbed],
-            components: [buildSelectMenu("home")],
+            components: [buildSelectMenu("home"), quickLinks],
           });
         }
 
@@ -302,7 +326,7 @@ module.exports = {
 
         return selectInteraction.update({
           embeds: [catEmbed],
-          components: [buildSelectMenu(targetCat.id)],
+          components: [buildSelectMenu(targetCat.id), quickLinks],
         });
       });
 
@@ -312,7 +336,7 @@ module.exports = {
             buildSelectMenu("home").components[0],
           ).setDisabled(true);
           const disabledRow = new ActionRowBuilder().addComponents(disabledMenu);
-          await interaction.editReply({ components: [disabledRow] }).catch(() => {});
+          await interaction.editReply({ components: [disabledRow, quickLinks] }).catch(() => {});
         } catch {
           // Ignorer si le message éphémère a expiré
         }

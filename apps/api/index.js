@@ -10,6 +10,7 @@ import debugRoutes from "./routes/debug.js"
 import devDbRoutes from "./routes/devDb.js"
 import economyRoutes from "./routes/economy.js"
 import featureRoutes from "./routes/features.js"
+import topggRoutes from "./routes/topgg.js"
 
 const app = express()
 
@@ -27,6 +28,7 @@ app.use("/api", debugRoutes)
 app.use("/api", devDbRoutes)
 app.use("/api", economyRoutes)
 app.use("/api", featureRoutes)
+app.use("/api", topggRoutes)
 
 app.listen(3001, () => {
   console.log("API running on http://localhost:3001")

@@ -25,6 +25,10 @@ const userSchema = new Schema({
 		type: Date,
 		default: null,
 	},
+	lastVote: {
+		type: Date,
+		default: null,
+	},
   items: {
     type: [String],
     default: []
