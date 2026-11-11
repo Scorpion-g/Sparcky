@@ -64,7 +64,7 @@ services:
     restart: unless-stopped
     environment:
       - WEBSOCKET_ENABLED=true
-      - SIGNUPS_ALLOWED=true
+      - SIGNUPS_ALLOWED=false
       - DOMAIN=https://vault.matteoriviere.fr
     volumes:
       - vaultwarden_data:/data
