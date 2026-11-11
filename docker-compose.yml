@@ -47,7 +47,31 @@ services:
     networks:
       - sparcky_net
 
-  # Panel Web (React 19 servi par Nginx avec proxy inverse vers l'API)
+  # Uptime Kuma (Surveillance & Status Page)
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime_kuma
+    restart: unless-stopped
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - sparcky_net
+
+  # Vaultwarden (Gestionnaire de mots de passe Bitwarden)
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - WEBSOCKET_ENABLED=true
+      - SIGNUPS_ALLOWED=true
+      - DOMAIN=https://vault.matteoriviere.fr
+    volumes:
+      - vaultwarden_data:/data
+    networks:
+      - sparcky_net
+
+  # Panel Web (React 19 servi par Nginx avec proxy inverse vers l'API, Uptime Kuma et Vaultwarden)
   panel:
     build:
       context: .
@@ -56,6 +80,8 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+      - uptime-kuma
+      - vaultwarden
     ports:
       - "80:80"
       - "443:443"
@@ -64,6 +90,8 @@ services:
 
 volumes:
   mongo_data:
+  uptime_kuma_data:
+  vaultwarden_data:
 
 networks:
   sparcky_net:
