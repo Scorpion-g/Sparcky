@@ -346,6 +346,9 @@ router.get("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
     const formatted = giveaways.map((g) => ({
       id: g._id.toString(),
       prize: g.prize,
+      rewardType: g.rewardType || "other",
+      rewardAmount: g.rewardAmount || null,
+      rewardRoleId: g.rewardRoleId || null,
       channelId: g.channelId,
       messageId: g.messageId,
       endTime: g.endTime,
@@ -369,7 +372,15 @@ router.get("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
 // 2. Créer et lancer un giveaway depuis le panel
 router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
   const { guildId } = req.params
-  const { prize, durationMinutes = 60, winnersCount = 1, channelId } = req.body || {}
+  const {
+    prize,
+    durationMinutes = 60,
+    winnersCount = 1,
+    channelId,
+    rewardType = "other",
+    rewardAmount = null,
+    rewardRoleId = null
+  } = req.body || {}
 
   if (!channelId) {
     return res.status(400).json({ error: "Le salon Discord (channelId) est requis" })
@@ -380,6 +391,7 @@ router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
 
   const duration = Math.max(1, Number.parseInt(durationMinutes, 10) || 60)
   const winners = Math.max(1, Number.parseInt(winnersCount, 10) || 1)
+  const parsedAmount = rewardAmount ? Math.max(1, Number.parseInt(rewardAmount, 10)) : null
   const token = getBotToken()
   if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant" })
 
@@ -388,11 +400,21 @@ router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
     const endTime = new Date(Date.now() + duration * 60000)
     const endTimestamp = Math.floor(endTime.getTime() / 1000)
 
+    let rewardDetail = ""
+    if (rewardType === "coins" && parsedAmount) {
+      rewardDetail = `💰 **Gain automatique :** \`+${parsedAmount} pièces\` (crédité au solde)\n`
+    } else if (rewardType === "xp" && parsedAmount) {
+      rewardDetail = `⭐ **Gain automatique :** \`+${parsedAmount} XP\` (crédité au niveau)\n`
+    } else if (rewardType === "role" && rewardRoleId) {
+      rewardDetail = `🎭 **Rôle offert :** <@&${rewardRoleId}> (attribué automatiquement)\n`
+    }
+
     const embed = {
       title: `🎉 GIVEAWAY : ${prize.trim()}`,
       description:
         `Cliquez sur le bouton **Participer** ci-dessous pour tenter votre chance !\n\n` +
         `🎁 **Lot à gagner :** **${prize.trim()}**\n` +
+        rewardDetail +
         `🏆 **Nombre de gagnant(s) :** \`${winners}\`\n` +
         `⏰ **Fin du tirage :** <t:${endTimestamp}:R> (<t:${endTimestamp}:f>)\n` +
         `👤 **Organisé par :** Panneau Web (${req.user?.username || "Admin"})\n` +
@@ -432,6 +454,9 @@ router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
       messageId,
       endTime,
       prize: prize.trim(),
+      rewardType: ["coins", "xp", "role", "other"].includes(rewardType) ? rewardType : "other",
+      rewardAmount: (rewardType === "coins" || rewardType === "xp") ? parsedAmount : null,
+      rewardRoleId: (rewardType === "role") ? rewardRoleId : null,
       winnersCount: winners,
       participants: [],
       winners: [],
@@ -457,6 +482,63 @@ router.post("/guilds/:guildId/giveaways", authenticate, async (req, res) => {
     })
   }
 })
+
+// Helper pour distribuer les récompenses depuis l'API
+async function distributeApiRewards(db, token, guildId, giveaway, winners) {
+  if (!winners || winners.length === 0) return
+
+  // 1. Monnaie
+  if (giveaway.rewardType === "coins" && giveaway.rewardAmount > 0) {
+    for (const wid of winners) {
+      await db.collection("users").updateOne(
+        { guildId, userId: wid },
+        { $inc: { balance: Number(giveaway.rewardAmount) } },
+        { upsert: true }
+      ).catch((err) => console.error("Erreur crédit pièces API:", err))
+    }
+  }
+
+  // 2. XP
+  if (giveaway.rewardType === "xp" && giveaway.rewardAmount > 0) {
+    for (const wid of winners) {
+      await db.collection("Level").updateOne(
+        { guildId, userId: wid },
+        { $inc: { xp: Number(giveaway.rewardAmount) } },
+        { upsert: true }
+      ).catch((err) => console.error("Erreur crédit XP API:", err))
+    }
+  }
+
+  // 3. Rôle Discord
+  if (giveaway.rewardType === "role" && giveaway.rewardRoleId && token) {
+    for (const wid of winners) {
+      await axios.put(
+        `https://discord.com/api/guilds/${guildId}/members/${wid}/roles/${giveaway.rewardRoleId}`,
+        {},
+        { headers: { Authorization: `Bot ${token}` } }
+      ).catch((err) => console.error(`Erreur attribution rôle API (${wid}):`, err?.response?.data || err?.message))
+    }
+  }
+}
+
+// Helper pour formater l'annonce
+function formatApiAnnouncement(giveaway, winners) {
+  if (!winners || winners.length === 0) {
+    return `😕 Aucun gagnant pour le giveaway **${giveaway.prize}** (aucun participant).`
+  }
+  const mentions = winners.map((wid) => `<@${wid}>`).join(", ")
+
+  if (giveaway.rewardType === "coins" && giveaway.rewardAmount > 0) {
+    return `🎉 Félicitations ${mentions} ! Vous avez remporté **${giveaway.prize}** !\n💰 **+${giveaway.rewardAmount} pièces** ont été créditées directement sur votre compte d'économie ! 🪙`
+  }
+  if (giveaway.rewardType === "xp" && giveaway.rewardAmount > 0) {
+    return `🎉 Félicitations ${mentions} ! Vous avez remporté **${giveaway.prize}** !\n⭐ **+${giveaway.rewardAmount} points d'XP** ont été ajoutés à votre niveau ! 🆙`
+  }
+  if (giveaway.rewardType === "role" && giveaway.rewardRoleId) {
+    return `🎉 Félicitations ${mentions} ! Vous avez remporté le rôle <@&${giveaway.rewardRoleId}> !\n🎭 Le rôle vous a été automatiquement attribué sur le serveur ! ✔️`
+  }
+  return `🎉 Félicitations ${mentions} ! Vous avez gagné le giveaway pour **${giveaway.prize}** ! 🎁`
+}
 
 // 3. Clôturer un giveaway et tirer les gagnants
 router.post("/guilds/:guildId/giveaways/:id/end", authenticate, async (req, res) => {
@@ -506,6 +588,9 @@ router.post("/guilds/:guildId/giveaways/:id/end", authenticate, async (req, res)
       }
     )
 
+    // Distribuer automatiquement les gains
+    await distributeApiRewards(db, token, guildId, giveaway, winners)
+
     // Mettre à jour Discord si bot token présent
     if (token && giveaway.channelId) {
       const winnersMentions =
@@ -513,11 +598,21 @@ router.post("/guilds/:guildId/giveaways/:id/end", authenticate, async (req, res)
           ? winners.map((wid) => `<@${wid}>`).join(", ")
           : "*Aucun participant éligible*"
 
+      let rewardDetail = ""
+      if (giveaway.rewardType === "coins" && giveaway.rewardAmount > 0) {
+        rewardDetail = `💰 **Gain automatique :** \`+${giveaway.rewardAmount} pièces\` (crédité au solde)\n`
+      } else if (giveaway.rewardType === "xp" && giveaway.rewardAmount > 0) {
+        rewardDetail = `⭐ **Gain automatique :** \`+${giveaway.rewardAmount} XP\` (crédité au niveau)\n`
+      } else if (giveaway.rewardType === "role" && giveaway.rewardRoleId) {
+        rewardDetail = `🎭 **Rôle offert :** <@&${giveaway.rewardRoleId}> (attribué automatiquement)\n`
+      }
+
       const endEmbed = {
         title: `🎉 GIVEAWAY : ${giveaway.prize}`,
         description:
           `Ce giveaway est maintenant **terminé** !\n\n` +
           `🎁 **Lot gagné :** **${giveaway.prize}**\n` +
+          rewardDetail +
           `🏆 **Gagnant(s) :** ${winnersMentions}\n` +
           (giveaway.hostedBy ? `👤 **Organisé par :** <@${giveaway.hostedBy}>\n` : "") +
           `👥 **Total participants :** \`${participants.length}\``,
@@ -549,23 +644,12 @@ router.post("/guilds/:guildId/giveaways/:id/end", authenticate, async (req, res)
       }
 
       // Annonce gagnant(s)
-      if (winners.length > 0) {
-        await axios.post(
-          `https://discord.com/api/channels/${giveaway.channelId}/messages`,
-          {
-            content: `🎉 Félicitations ${winnersMentions} ! Vous avez gagné le giveaway pour **${giveaway.prize}** ! 🎁`
-          },
-          { headers: { Authorization: `Bot ${token}` } }
-        ).catch(() => {})
-      } else {
-        await axios.post(
-          `https://discord.com/api/channels/${giveaway.channelId}/messages`,
-          {
-            content: `😕 Aucun gagnant pour le giveaway **${giveaway.prize}** (aucun participant).`
-          },
-          { headers: { Authorization: `Bot ${token}` } }
-        ).catch(() => {})
-      }
+      const announcement = formatApiAnnouncement(giveaway, winners)
+      await axios.post(
+        `https://discord.com/api/channels/${giveaway.channelId}/messages`,
+        { content: announcement },
+        { headers: { Authorization: `Bot ${token}` } }
+      ).catch(() => {})
     }
 
     return res.json({ success: true, winners, isEnded: true })
@@ -621,12 +705,15 @@ router.post("/guilds/:guildId/giveaways/:id/reroll", authenticate, async (req, r
       }
     )
 
+    // Distribuer les récompenses aux nouveaux gagnants
+    await distributeApiRewards(db, token, guildId, giveaway, winners)
+
     if (token && giveaway.channelId) {
-      const mentions = winners.map((wid) => `<@${wid}>`).join(", ")
+      const announcement = formatApiAnnouncement(giveaway, winners)
       await axios.post(
         `https://discord.com/api/channels/${giveaway.channelId}/messages`,
         {
-          content: `🔄 **Nouveau tirage (Reroll)** pour le giveaway **${giveaway.prize}** !\nFélicitations à ${mentions} ! 🎁`
+          content: `🔄 **Nouveau tirage (Reroll)** pour le giveaway **${giveaway.prize}** !\n${announcement}`
         },
         { headers: { Authorization: `Bot ${token}` } }
       ).catch(() => {})

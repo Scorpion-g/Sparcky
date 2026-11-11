@@ -69,6 +69,46 @@ module.exports = {
               "es-ES": "Canal para el sorteo",
             })
             .setRequired(true),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("type")
+            .setDescription("Type de gain (pièces, XP, rôle, autre)")
+            .setDescriptionLocalizations({
+              fr: "Type de gain (pièces, XP, rôle, autre)",
+              "en-US": "Reward type (coins, XP, role, other)",
+              "es-ES": "Tipo de premio (monedas, XP, rol, otro)",
+            })
+            .setRequired(false)
+            .addChoices(
+              { name: "🪙 Pièces (Système d'Économie)", value: "coins" },
+              { name: "⭐ Expérience (Système d'XP)", value: "xp" },
+              { name: "🎭 Rôle Discord", value: "role" },
+              { name: "🎁 Autre lot personnalisé", value: "other" }
+            )
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName("amount")
+            .setDescription("Montant numérique (si pièces ou XP)")
+            .setDescriptionLocalizations({
+              fr: "Montant numérique (si pièces ou XP)",
+              "en-US": "Numeric amount (if coins or XP)",
+              "es-ES": "Monto numérico (si son monedas o XP)",
+            })
+            .setMinValue(1)
+            .setRequired(false)
+        )
+        .addRoleOption((opt) =>
+          opt
+            .setName("role")
+            .setDescription("Rôle Discord à attribuer (si récompense rôle)")
+            .setDescriptionLocalizations({
+              fr: "Rôle Discord à attribuer (si récompense rôle)",
+              "en-US": "Discord role to award (if role reward)",
+              "es-ES": "Rol de Discord a otorgar (si el premio es un rol)",
+            })
+            .setRequired(false)
         ),
     )
     .addSubcommand((sub) =>
@@ -123,6 +163,9 @@ module.exports = {
       const duration = interaction.options.getInteger("duration");
       const winnersCount = interaction.options.getInteger("winners");
       const channel = interaction.options.getChannel("channel");
+      const rewardType = interaction.options.getString("type") || "other";
+      const rewardAmount = interaction.options.getInteger("amount") || null;
+      const role = interaction.options.getRole("role") || null;
 
       if (channel.type !== 0) {
         return interaction.reply({
@@ -131,12 +174,25 @@ module.exports = {
         });
       }
 
+      // Formatage du lot si type spécifique
+      let finalPrize = prize.trim();
+      if (rewardType === "coins" && rewardAmount && !finalPrize.includes(String(rewardAmount))) {
+        finalPrize = `${rewardAmount} pièces (${finalPrize})`;
+      } else if (rewardType === "xp" && rewardAmount && !finalPrize.includes(String(rewardAmount))) {
+        finalPrize = `${rewardAmount} XP (${finalPrize})`;
+      } else if (rewardType === "role" && role && !finalPrize.includes(role.name)) {
+        finalPrize = `Rôle @${role.name} (${finalPrize})`;
+      }
+
       const endTime = new Date(Date.now() + duration * 60000);
 
       const giveaway = new Giveaway({
         guildId: interaction.guild.id,
         channelId: channel.id,
-        prize,
+        prize: finalPrize,
+        rewardType,
+        rewardAmount: (rewardType === "coins" || rewardType === "xp") ? rewardAmount : null,
+        rewardRoleId: (rewardType === "role" && role) ? role.id : null,
         endTime,
         winnersCount,
         participants: [],

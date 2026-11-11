@@ -132,6 +132,9 @@ export default function GuildPage() {
   // Données Giveaways
   const [giveawaysList, setGiveawaysList] = useState([])
   const [giveawaysLoading, setGiveawaysLoading] = useState(false)
+  const [gwType, setGwType] = useState("coins")
+  const [gwAmount, setGwAmount] = useState("1000")
+  const [gwRoleId, setGwRoleId] = useState("")
   const [gwPrize, setGwPrize] = useState("")
   const [gwDuration, setGwDuration] = useState("60")
   const [gwWinners, setGwWinners] = useState("1")
@@ -492,10 +495,52 @@ export default function GuildPage() {
 
   async function handleCreateGiveaway(e) {
     if (e) e.preventDefault()
-    if (!gwPrize.trim() || !gwChannel) {
-      setGwMessage({ type: "error", text: "Veuillez renseigner un lot et choisir un salon." })
+    if (!gwChannel) {
+      setGwMessage({ type: "error", text: "Veuillez choisir un salon pour le giveaway." })
       return
     }
+
+    let finalPrize = gwPrize.trim()
+    let finalAmount = null
+    let finalRoleId = null
+
+    if (gwType === "coins") {
+      const amt = Number(gwAmount)
+      if (!amt || amt <= 0) {
+        setGwMessage({ type: "error", text: "Veuillez indiquer un montant de pièces valide supérieur à 0." })
+        return
+      }
+      finalAmount = amt
+      if (!finalPrize) {
+        finalPrize = `${amt.toLocaleString()} ${config?.currencySymbol || "$"}`
+      }
+    } else if (gwType === "xp") {
+      const amt = Number(gwAmount)
+      if (!amt || amt <= 0) {
+        setGwMessage({ type: "error", text: "Veuillez indiquer un montant d'XP valide supérieur à 0." })
+        return
+      }
+      finalAmount = amt
+      if (!finalPrize) {
+        finalPrize = `${amt.toLocaleString()} XP`
+      }
+    } else if (gwType === "role") {
+      if (!gwRoleId) {
+        setGwMessage({ type: "error", text: "Veuillez sélectionner un rôle Discord à attribuer." })
+        return
+      }
+      finalRoleId = gwRoleId
+      if (!finalPrize) {
+        const foundRole = roles.find((r) => r.id === gwRoleId)
+        finalPrize = `Rôle @${foundRole?.name || "Membre"}`
+      }
+    } else {
+      if (!finalPrize) {
+        setGwMessage({ type: "error", text: "Veuillez renseigner un intitulé pour le lot." })
+        return
+      }
+    }
+
     setGwSubmitting(true)
     setGwMessage(null)
     try {
@@ -506,7 +551,10 @@ export default function GuildPage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          prize: gwPrize.trim(),
+          prize: finalPrize,
+          rewardType: gwType,
+          rewardAmount: finalAmount,
+          rewardRoleId: finalRoleId,
           durationMinutes: Number(gwDuration) || 60,
           winnersCount: Number(gwWinners) || 1,
           channelId: gwChannel
@@ -1589,21 +1637,185 @@ export default function GuildPage() {
                           ➕ {t("gw.createTitle")}
                         </h3>
 
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                              {t("gw.prize")}
-                            </label>
-                            <input
-                              type="text"
-                              value={gwPrize}
-                              onChange={(e) => setGwPrize(e.target.value)}
-                              placeholder={t("gw.prizePlaceholder")}
-                              className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
-                              required
-                            />
+                        {/* Sélecteur de type de récompense */}
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                            {t("gw.type")}
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {[
+                              { id: "coins", label: t("gw.typeCoins"), icon: "🪙" },
+                              { id: "xp", label: t("gw.typeXp"), icon: "⭐" },
+                              { id: "role", label: t("gw.typeRole"), icon: "🎭" },
+                              { id: "other", label: t("gw.typeOther"), icon: "🎁" }
+                            ].map((item) => {
+                              const active = gwType === item.id
+                              return (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => setGwType(item.id)}
+                                  className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                                    active
+                                      ? "border-indigo-500 bg-indigo-600/25 text-white shadow-sm ring-1 ring-indigo-500/50"
+                                      : "border-white/10 bg-slate-900/60 text-slate-300 hover:border-white/20 hover:bg-slate-800/60"
+                                  }`}
+                                >
+                                  <span>{item.icon}</span>
+                                  <span className="truncate">{item.label}</span>
+                                </button>
+                              )
+                            })}
                           </div>
+                        </div>
 
+                        {/* Paramètres selon le type */}
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-4 space-y-3">
+                          {gwType === "coins" && (
+                            <div className="space-y-3">
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.amount")} ({config?.currencySymbol || "$"})
+                                  </label>
+                                  <div className="relative mt-1.5">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={gwAmount}
+                                      onChange={(e) => setGwAmount(e.target.value)}
+                                      placeholder={t("gw.amountCoinsPlaceholder")}
+                                      className="w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                      required
+                                    />
+                                    <span className="absolute right-3.5 top-2.5 text-sm font-bold text-amber-400">
+                                      {config?.currencySymbol || "$"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.prize")} <span className="text-slate-500 normal-case">(optionnel)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={gwPrize}
+                                    onChange={(e) => setGwPrize(e.target.value)}
+                                    placeholder={gwAmount ? `${Number(gwAmount || 0).toLocaleString()} ${config?.currencySymbol || "$"}` : t("gw.prizePlaceholder")}
+                                    className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-amber-300/80">
+                                {t("gw.coinsHint")}
+                              </p>
+                            </div>
+                          )}
+
+                          {gwType === "xp" && (
+                            <div className="space-y-3">
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.amount")} (XP)
+                                  </label>
+                                  <div className="relative mt-1.5">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={gwAmount}
+                                      onChange={(e) => setGwAmount(e.target.value)}
+                                      placeholder={t("gw.amountXpPlaceholder")}
+                                      className="w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                      required
+                                    />
+                                    <span className="absolute right-3.5 top-2.5 text-sm font-bold text-indigo-400">
+                                      XP
+                                    </span>
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.prize")} <span className="text-slate-500 normal-case">(optionnel)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={gwPrize}
+                                    onChange={(e) => setGwPrize(e.target.value)}
+                                    placeholder={gwAmount ? `${Number(gwAmount || 0).toLocaleString()} XP` : t("gw.prizePlaceholder")}
+                                    className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-indigo-300/80">
+                                {t("gw.xpHint")}
+                              </p>
+                            </div>
+                          )}
+
+                          {gwType === "role" && (
+                            <div className="space-y-3">
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.roleLabel")}
+                                  </label>
+                                  <select
+                                    value={gwRoleId}
+                                    onChange={(e) => setGwRoleId(e.target.value)}
+                                    className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+                                    required
+                                  >
+                                    <option value="">-- {t("gw.selectRole")} --</option>
+                                    {roles.map((r) => (
+                                      <option key={r.id} value={r.id}>
+                                        @{r.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {t("gw.prize")} <span className="text-slate-500 normal-case">(optionnel)</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={gwPrize}
+                                    onChange={(e) => setGwPrize(e.target.value)}
+                                    placeholder={gwRoleId ? `Rôle @${roles.find(r => r.id === gwRoleId)?.name || "VIP"}` : t("gw.prizePlaceholder")}
+                                    className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-purple-300/80">
+                                {t("gw.roleHint")}
+                              </p>
+                            </div>
+                          )}
+
+                          {gwType === "other" && (
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                  {t("gw.prize")}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={gwPrize}
+                                  onChange={(e) => setGwPrize(e.target.value)}
+                                  placeholder={t("gw.prizePlaceholder")}
+                                  className="mt-1.5 w-full rounded-2xl border border-white/10 bg-slate-800/80 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+                                  required
+                                />
+                              </div>
+                              <p className="text-xs text-slate-400">
+                                {t("gw.otherHint")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
                           <div>
                             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
                               {t("gw.channel")}
@@ -1713,8 +1925,30 @@ export default function GuildPage() {
                                   }`}
                                 >
                                   <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                       <span className="text-base font-bold text-white">🎁 {g.prize}</span>
+
+                                      {g.rewardType === "coins" && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                                          🪙 {g.rewardAmount ? `${g.rewardAmount.toLocaleString()} ${config?.currencySymbol || "$"}` : "Économie"}
+                                        </span>
+                                      )}
+                                      {g.rewardType === "xp" && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-semibold text-indigo-300">
+                                          ⭐ {g.rewardAmount ? `${g.rewardAmount.toLocaleString()} XP` : "XP"}
+                                        </span>
+                                      )}
+                                      {g.rewardType === "role" && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/15 border border-purple-500/30 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
+                                          🎭 @{roles.find((r) => r.id === g.rewardRoleId)?.name || "Rôle"}
+                                        </span>
+                                      )}
+                                      {(!g.rewardType || g.rewardType === "other") && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-700/60 border border-white/10 px-2.5 py-0.5 text-xs font-semibold text-slate-300">
+                                          🎁 {t("gw.typeOther")}
+                                        </span>
+                                      )}
+
                                       <span
                                         className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                                           isEnded

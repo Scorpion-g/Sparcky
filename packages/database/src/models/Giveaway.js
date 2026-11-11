@@ -22,6 +22,19 @@ const giveawaySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    rewardType: {
+      type: String,
+      enum: ["coins", "xp", "role", "other"],
+      default: "other",
+    },
+    rewardAmount: {
+      type: Number,
+      default: null,
+    },
+    rewardRoleId: {
+      type: String,
+      default: null,
+    },
     winnersCount: {
       type: Number,
       required: true,
