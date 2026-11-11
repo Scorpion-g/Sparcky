@@ -1,9 +1,6 @@
 const { WebhookClient, EmbedBuilder } = require("discord.js");
 const logger = require("../../utils/logger");
 
-const DEFAULT_WEBHOOK =
-  "https://discord.com/api/webhooks/1570031402186047570/O_6r4JJR7gnAoXL09uHFt-kUEhN5NtUB0vtoOgkLY7sObM_Md4eHEYVgeRtry-Ir22ff";
-
 module.exports = {
   name: "guildDelete",
   async execute(client, guild) {
@@ -13,7 +10,7 @@ module.exports = {
       const totalGuilds = client.guilds.cache.size;
       const totalMembers = client.guilds.cache.reduce((acc, g) => acc + (g.memberCount || 0), 0);
 
-      const webhookUrl = process.env.GUILD_LOGS_WEBHOOK_URL || DEFAULT_WEBHOOK;
+      const webhookUrl = process.env.GUILD_LOGS_WEBHOOK_URL;
       if (webhookUrl) {
         const webhookClient = new WebhookClient({ url: webhookUrl });
 
