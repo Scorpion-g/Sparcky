@@ -29,3 +29,20 @@ body {
 #root {
   min-height: 100%;
 }
+
+/* Utilitaires pour le défilement mobile fluide sans barre de défilement visible */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Prise en charge des encoches iOS (iPhone notch & barre d'accueil) */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}

@@ -981,7 +981,33 @@ export default function GuildPage() {
             {/* Menu d'onglets de configuration complet */}
             {botInGuild && (
               <>
-                <div className="flex flex-wrap gap-2 border-b border-white/10 pb-4">
+                {/* Sélecteur déroulant rapide pour Mobile (< md) */}
+                <div className="md:hidden space-y-2">
+                  <div className="relative">
+                    <select
+                      value={activeTab}
+                      onChange={(e) => setActiveTab(e.target.value)}
+                      className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-indigo-500 shadow-xl pr-10"
+                    >
+                      <option value="channels">📌 {t("tabs.channels")}</option>
+                      <option value="security">🛡️ {t("tabs.security")}</option>
+                      <option value="economy">🪙 {config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")}</option>
+                      <option value="leveling">🏆 {config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")}</option>
+                      <option value="giveaways">🎉 {t("tabs.giveaways")}</option>
+                      <option value="tickets">🎫 {t("tabs.tickets")}</option>
+                      <option value="embeds">📢 {t("tabs.embeds")}</option>
+                      <option value="warns">📜 {t("tabs.warns")}</option>
+                      <option value="words">🚫 {t("tabs.words")} ({config?.badWords?.length || 0})</option>
+                      <option value="settings">⚙️ {t("tabs.settings")}</option>
+                    </select>
+                    <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+
+                {/* Barre d'onglets défilable horizontalement sur mobile & enveloppante sur desktop */}
+                <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-3 md:flex-wrap md:pb-4 max-w-full">
                   <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label={t("tabs.channels")} />
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
@@ -3126,7 +3152,7 @@ function TabButton({ active, onClick, icon, label }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-semibold transition ${
+      className={`shrink-0 flex items-center gap-2 rounded-2xl px-4 py-2.5 text-xs font-semibold transition ${
         active
           ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
           : "border border-white/5 bg-slate-900/60 text-slate-300 hover:border-white/10 hover:bg-slate-900"

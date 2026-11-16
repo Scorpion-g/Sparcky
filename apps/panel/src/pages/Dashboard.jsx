@@ -233,25 +233,25 @@ export default function Dashboard() {
           </div>
 
           {/* User info + Langue + Déconnexion */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSelector />
 
             {user && (
-              <div className="hidden sm:flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-1.5">
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-2.5 py-1.5 sm:px-3">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.username} className="h-7 w-7 rounded-xl object-cover" />
+                  <img src={user.avatarUrl} alt={user.username} className="h-6 w-6 sm:h-7 sm:w-7 rounded-xl object-cover" />
                 ) : (
-                  <div className="grid h-7 w-7 place-items-center rounded-xl bg-slate-800 text-xs font-semibold text-slate-200">
+                  <div className="grid h-6 w-6 sm:h-7 sm:w-7 place-items-center rounded-xl bg-slate-800 text-[11px] font-semibold text-slate-200">
                     {(user.username || "?").slice(0, 1)}
                   </div>
                 )}
-                <span className="text-sm font-medium text-slate-200">{user.username}</span>
+                <span className="hidden sm:inline text-sm font-medium text-slate-200">{user.username}</span>
               </div>
             )}
 
             <button
               onClick={logout}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
+              className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
             >
               {t("common.logout")}
             </button>
@@ -571,11 +571,11 @@ export default function Dashboard() {
 
         {/* Barre de filtres et recherche */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Onglets de filtres */}
-          <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-slate-900/80 p-1">
+          {/* Onglets de filtres scrollables sur mobile */}
+          <div className="flex overflow-x-auto no-scrollbar gap-1.5 rounded-2xl border border-white/10 bg-slate-900/80 p-1 max-w-full">
             <button
               onClick={() => setActiveTab("admin")}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 activeTab === "admin"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-400 hover:text-slate-200"
@@ -585,7 +585,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={() => setActiveTab("with_bot")}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 activeTab === "with_bot"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-400 hover:text-slate-200"
@@ -595,7 +595,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={() => setActiveTab("to_invite")}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 activeTab === "to_invite"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-400 hover:text-slate-200"
@@ -605,7 +605,7 @@ export default function Dashboard() {
             </button>
             <button
               onClick={() => setActiveTab("all")}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+              className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
                 activeTab === "all"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-400 hover:text-slate-200"
