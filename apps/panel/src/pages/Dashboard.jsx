@@ -201,59 +201,64 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
       {/* Barre de navigation supérieure */}
-      <header className="border-b border-white/10 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+      <header className="border-b border-white/10 bg-slate-900/60 backdrop-blur sticky top-0 z-50 w-full overflow-hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 w-full">
           {/* Bot info (PP du bot + Nom + Status) */}
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+            <div className="relative shrink-0">
               {bot?.avatarUrl ? (
                 <img
                   src={bot.avatarUrl}
                   alt={bot.username}
-                  className="h-11 w-11 rounded-2xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10"
+                  className="h-8 w-8 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl object-cover ring-2 ring-indigo-500/40 shadow-lg shadow-indigo-500/10"
                 />
               ) : (
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-600 text-white font-bold ring-2 ring-white/10">
+                <div className="grid h-8 w-8 sm:h-11 sm:w-11 place-items-center rounded-xl sm:rounded-2xl bg-indigo-600 text-white font-bold ring-2 ring-white/10 text-xs sm:text-base">
                   S
                 </div>
               )}
               {/* Badge vert en ligne */}
-              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-emerald-500" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 sm:h-3.5 sm:w-3.5 rounded-full border-2 border-slate-950 bg-emerald-500" />
             </div>
 
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-bold text-white leading-none">{bot?.username || "Sparcky"}</h1>
-                <span className="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-500/30">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-sm sm:text-base font-bold text-white leading-none truncate">{bot?.username || "Sparcky"}</h1>
+                <span className="rounded-md bg-indigo-500/15 px-1 sm:px-1.5 py-0.5 text-[9px] sm:text-[10px] font-semibold text-indigo-300 ring-1 ring-indigo-500/30 shrink-0">
                   BOT
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">Panneau d'administration</p>
+              <p className="hidden sm:block text-xs text-slate-400 mt-0.5 truncate">Panneau d'administration</p>
             </div>
           </div>
 
           {/* User info + Langue + Déconnexion */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <LanguageSelector />
 
             {user && (
-              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-2.5 py-1.5 sm:px-3">
+              <div className="flex items-center gap-1.5 rounded-xl sm:rounded-2xl border border-white/10 bg-white/5 px-2 py-1 sm:px-3 sm:py-1.5 shrink-0" title={user.username}>
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.username} className="h-6 w-6 sm:h-7 sm:w-7 rounded-xl object-cover" />
+                  <img src={user.avatarUrl} alt={user.username} className="h-6 w-6 sm:h-7 sm:w-7 rounded-lg sm:rounded-xl object-cover shrink-0" />
                 ) : (
-                  <div className="grid h-6 w-6 sm:h-7 sm:w-7 place-items-center rounded-xl bg-slate-800 text-[11px] font-semibold text-slate-200">
+                  <div className="grid h-6 w-6 sm:h-7 sm:w-7 place-items-center rounded-lg sm:rounded-xl bg-slate-800 text-[10px] sm:text-[11px] font-semibold text-slate-200 shrink-0">
                     {(user.username || "?").slice(0, 1)}
                   </div>
                 )}
-                <span className="hidden sm:inline text-sm font-medium text-slate-200">{user.username}</span>
+                <span className="hidden sm:inline text-xs sm:text-sm font-medium text-slate-200 max-w-[120px] truncate">{user.username}</span>
               </div>
             )}
 
             <button
               onClick={logout}
-              className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition"
+              title={t("common.logout")}
+              aria-label={t("common.logout")}
+              className="rounded-xl border border-white/10 bg-white/5 p-2 sm:px-3 sm:py-2 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center gap-1.5 shrink-0"
             >
-              {t("common.logout")}
+              <svg className="h-4 w-4 sm:hidden text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="hidden sm:inline">{t("common.logout")}</span>
             </button>
           </div>
         </div>
@@ -271,7 +276,7 @@ export default function Dashboard() {
           </div>
 
           {/* Cartes statistiques */}
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
               <span className="text-slate-400">{t("dash.tabAdmin")} :</span>{" "}
               <span className="font-bold text-white">{stats.adminCount}</span>
@@ -572,7 +577,7 @@ export default function Dashboard() {
         {/* Barre de filtres et recherche */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Onglets de filtres scrollables sur mobile */}
-          <div className="flex overflow-x-auto no-scrollbar gap-1.5 rounded-2xl border border-white/10 bg-slate-900/80 p-1 max-w-full">
+          <div className="flex overflow-x-auto no-scrollbar gap-1.5 rounded-2xl border border-white/10 bg-slate-900/80 p-1 w-full min-w-0 max-w-full">
             <button
               onClick={() => setActiveTab("admin")}
               className={`shrink-0 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${

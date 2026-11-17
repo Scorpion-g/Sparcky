@@ -844,32 +844,34 @@ export default function GuildPage() {
       </div>
 
       {/* Navigation Header */}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/80 backdrop-blur-xl w-full overflow-hidden">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2.5 sm:px-6 sm:py-3 w-full">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
             <Link
               to="/dashboard"
-              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+              title="Dashboard"
+              aria-label="Dashboard"
+              className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 p-2 sm:px-3 sm:py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white shrink-0"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span>Dashboard</span>
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
 
-            <div className="h-4 w-px bg-white/10" />
+            <div className="hidden sm:block h-4 w-px bg-white/10 shrink-0" />
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               {bot?.avatarUrl ? (
                 <img
                   src={bot.avatarUrl}
                   alt={bot.username}
-                  className="h-8 w-8 rounded-full ring-2 ring-indigo-500/30"
+                  className="h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-indigo-500/30 shrink-0"
                 />
               ) : null}
-              <div className="leading-tight">
-                <p className="text-sm font-bold tracking-tight text-white">{bot?.username || "God_Sparky"}</p>
-                <div className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+              <div className="leading-tight min-w-0">
+                <p className="text-xs sm:text-sm font-bold tracking-tight text-white truncate">{bot?.username || "God_Sparky"}</p>
+                <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>En ligne</span>
                 </div>
@@ -877,14 +879,19 @@ export default function GuildPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <LanguageSelector />
             <button
               type="button"
               onClick={logout}
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-rose-300"
+              title={t("common.logout")}
+              aria-label={t("common.logout")}
+              className="rounded-xl border border-white/10 bg-white/5 p-2 sm:px-3 sm:py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-rose-300 shrink-0 flex items-center gap-1"
             >
-              {t("common.logout")}
+              <svg className="h-4 w-4 sm:hidden text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="hidden sm:inline">{t("common.logout")}</span>
             </button>
           </div>
         </div>
@@ -1007,7 +1014,7 @@ export default function GuildPage() {
                 </div>
 
                 {/* Barre d'onglets défilable horizontalement sur mobile & enveloppante sur desktop */}
-                <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-3 md:flex-wrap md:pb-4 max-w-full">
+                <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-3 md:flex-wrap md:pb-4 w-full min-w-0 max-w-full">
                   <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label={t("tabs.channels")} />
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />

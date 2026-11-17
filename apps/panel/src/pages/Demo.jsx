@@ -92,34 +92,35 @@ export default function Demo() {
       )}
 
       {/* Top Banner Mode Démo */}
-      <header className="border-b border-indigo-500/20 bg-indigo-950/40 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/login" className="flex items-center gap-2">
-              <span className="text-2xl font-black bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200 bg-clip-text text-transparent">
+      <header className="border-b border-indigo-500/20 bg-indigo-950/40 backdrop-blur sticky top-0 z-40 w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2 w-full">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 shrink">
+            <Link to="/login" className="flex items-center gap-2 shrink-0">
+              <span className="text-lg sm:text-2xl font-black bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200 bg-clip-text text-transparent">
                 God_Sparky
               </span>
             </Link>
-            <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-xs font-semibold text-amber-300 animate-pulse">
-              {t("demo.badge", "🎮 DÉMO INTERACTIVE")}
+            <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] sm:text-xs font-semibold text-amber-300 shrink-0">
+              <span className="sm:hidden">🎮 DÉMO</span>
+              <span className="hidden sm:inline">{t("demo.badge", "🎮 DÉMO INTERACTIVE")}</span>
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <LanguageSelector />
 
             <a
               href={BOT_INVITE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs sm:text-sm font-bold px-4 py-2 shadow-lg shadow-indigo-600/30 transition transform hover:scale-105"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs sm:text-sm font-bold px-2.5 py-1.5 sm:px-4 sm:py-2 shadow-lg shadow-indigo-600/30 transition shrink-0"
             >
-              <span>{t("demo.invite", "+ Inviter Sparcky")}</span>
+              <span>{t("demo.invite", "+ Inviter")}</span>
             </a>
 
             <Link
               to="/login"
-              className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 text-xs sm:text-sm font-semibold px-3 py-2 transition"
+              className="hidden sm:inline-flex rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 text-xs sm:text-sm font-semibold px-2.5 py-1.5 sm:px-3 sm:py-2 transition shrink-0"
             >
               {t("demo.login", "Connexion")}
             </Link>

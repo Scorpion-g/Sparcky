@@ -1038,27 +1038,50 @@ export function LanguageSelector({ className = "" }) {
     { code: "es", label: "ES", flag: "🇪🇸", full: "Español" }
   ]
 
+  const current = languages.find(l => l.code === lang) || languages[0]
+
   return (
-    <div className={`flex items-center gap-1 rounded-2xl border border-white/10 bg-slate-900/80 p-1 backdrop-blur ${className}`}>
-      {languages.map(l => {
-        const isSelected = lang === l.code
-        return (
-          <button
-            key={l.code}
-            type="button"
-            onClick={() => setLang(l.code)}
-            title={l.full}
-            className={`flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
-              isSelected
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-slate-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            <span>{l.flag}</span>
-            <span>{l.label}</span>
-          </button>
-        )
-      })}
-    </div>
+    <>
+      {/* Version Desktop (pills 3 langues) */}
+      <div className={`hidden sm:flex items-center gap-1 rounded-2xl border border-white/10 bg-slate-900/80 p-1 backdrop-blur shrink-0 ${className}`}>
+        {languages.map(l => {
+          const isSelected = lang === l.code
+          return (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => setLang(l.code)}
+              title={l.full}
+              className={`flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-semibold transition ${
+                isSelected
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <span>{l.flag}</span>
+              <span>{l.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Version Mobile compacte (sélecteur discret sans débordement) */}
+      <div className={`flex sm:hidden relative items-center rounded-xl border border-white/10 bg-slate-900/80 px-2 py-1 backdrop-blur shrink-0 ${className}`}>
+        <span className="text-xs mr-1 pointer-events-none">{current.flag}</span>
+        <select
+          value={lang}
+          onChange={(e) => setLang(e.target.value)}
+          className="bg-transparent text-[11px] font-bold text-slate-200 outline-none cursor-pointer appearance-none pr-3"
+          aria-label="Changer de langue"
+        >
+          {languages.map(l => (
+            <option key={l.code} value={l.code} className="bg-slate-900 text-slate-100">
+              {l.label}
+            </option>
+          ))}
+        </select>
+        <span className="pointer-events-none absolute right-1 text-[8px] text-slate-400">▼</span>
+      </div>
+    </>
   )
 }

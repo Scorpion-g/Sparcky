@@ -38,8 +38,8 @@ export default function Login() {
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col justify-between">
       {/* Top Bar avec Sélecteur de Langue */}
-      <header className="w-full max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-        <Link to="/" className="text-xl font-black bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200 bg-clip-text text-transparent">
+      <header className="w-full max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between gap-2 overflow-hidden">
+        <Link to="/" className="text-lg sm:text-xl font-black bg-gradient-to-r from-indigo-400 via-sky-300 to-indigo-200 bg-clip-text text-transparent shrink-0">
           God_Sparky
         </Link>
         <LanguageSelector />
