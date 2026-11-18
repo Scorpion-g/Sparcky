@@ -1268,6 +1268,7 @@ router.post("/guilds/:guildId/reaction-roles/send", authenticate, async (req, re
     title = "🎭 Rôles par Réaction",
     description = "Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles.",
     color = "#6366F1",
+    displayType = "buttons",
     roles = []
   } = req.body || {}
 
@@ -1293,26 +1294,53 @@ router.post("/guilds/:guildId/reaction-roles/send", authenticate, async (req, re
       DANGER: 4
     }
 
-    // Regrouper les rôles par 5 boutons max par ActionRow
+    const panelId = id || `rr_${Date.now()}`
     const validRoles = roles.slice(0, 25).filter(r => r && r.roleId)
     const components = []
-    for (let i = 0; i < validRoles.length; i += 5) {
-      const slice = validRoles.slice(i, i + 5)
+
+    if (displayType === "dropdown") {
       components.push({
         type: 1, // ActionRow
-        components: slice.map(r => {
-          const btn = {
-            type: 2, // Button
-            style: STYLE_MAP[r.style] || 1,
-            custom_id: `role_react_${r.roleId}`,
-            label: (r.label || "Rôle").slice(0, 80)
+        components: [
+          {
+            type: 3, // String Select Menu
+            custom_id: `role_select_${panelId}`,
+            placeholder: "Sélectionnez vos rôles...",
+            min_values: 0,
+            max_values: validRoles.length,
+            options: validRoles.map(r => {
+              const opt = {
+                label: (r.label || "Rôle").slice(0, 100),
+                value: r.roleId
+              }
+              if (r.emoji && String(r.emoji).trim()) {
+                opt.emoji = { name: String(r.emoji).trim() }
+              }
+              return opt
+            })
           }
-          if (r.emoji && String(r.emoji).trim()) {
-            btn.emoji = { name: String(r.emoji).trim() }
-          }
-          return btn
-        })
+        ]
       })
+    } else {
+      // Regrouper les rôles par 5 boutons max par ActionRow
+      for (let i = 0; i < validRoles.length; i += 5) {
+        const slice = validRoles.slice(i, i + 5)
+        components.push({
+          type: 1, // ActionRow
+          components: slice.map(r => {
+            const btn = {
+              type: 2, // Button
+              style: STYLE_MAP[r.style] || 1,
+              custom_id: `role_react_${r.roleId}`,
+              label: (r.label || "Rôle").slice(0, 80)
+            }
+            if (r.emoji && String(r.emoji).trim()) {
+              btn.emoji = { name: String(r.emoji).trim() }
+            }
+            return btn
+          })
+        })
+      }
     }
 
     const embed = {
@@ -1330,7 +1358,6 @@ router.post("/guilds/:guildId/reaction-roles/send", authenticate, async (req, re
       { headers: { Authorization: `Bot ${token}` } }
     )
 
-    const panelId = id || `rr_${Date.now()}`
     const panelObj = {
       id: panelId,
       channelId,
@@ -1338,6 +1365,7 @@ router.post("/guilds/:guildId/reaction-roles/send", authenticate, async (req, re
       title,
       description,
       color,
+      displayType: displayType === "dropdown" ? "dropdown" : "buttons",
       roles: validRoles,
       createdAt: new Date()
     }

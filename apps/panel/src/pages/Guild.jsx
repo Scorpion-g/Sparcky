@@ -151,8 +151,9 @@ export default function GuildPage() {
   const [rrForm, setRrForm] = useState({
     channelId: "",
     title: "🎭 Choix des Rôles",
-    description: "Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles.",
+    description: "Cliquez sur les options ci-dessous pour obtenir ou retirer vos rôles.",
     color: "#6366F1",
+    displayType: "buttons",
     roles: []
   })
   const [newRrRole, setNewRrRole] = useState({
@@ -2236,9 +2237,40 @@ export default function GuildPage() {
                               rows={2}
                               value={rrForm.description}
                               onChange={e => setRrForm(prev => ({ ...prev, description: e.target.value }))}
-                              placeholder="Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles."
+                              placeholder="Cliquez sur les options ci-dessous pour obtenir ou retirer vos rôles."
                               className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
                             />
+                          </div>
+
+                          {/* Choix du style : Boutons ou Menu Déroulant */}
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Style d'affichage Discord
+                            </label>
+                            <div className="mt-1.5 grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setRrForm(prev => ({ ...prev, displayType: "buttons" }))}
+                                className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition ${
+                                  rrForm.displayType !== "dropdown"
+                                    ? "border-indigo-500 bg-indigo-600/20 text-indigo-300 shadow-sm"
+                                    : "border-white/10 bg-slate-950 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                <span>🔘</span> Boutons
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRrForm(prev => ({ ...prev, displayType: "dropdown" }))}
+                                className={`flex items-center justify-center gap-2 rounded-xl border p-2.5 text-xs font-bold transition ${
+                                  rrForm.displayType === "dropdown"
+                                    ? "border-indigo-500 bg-indigo-600/20 text-indigo-300 shadow-sm"
+                                    : "border-white/10 bg-slate-950 text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                <span>📋</span> Menu Déroulant
+                              </button>
+                            </div>
                           </div>
 
                           {/* Ajout d'un bouton de rôle */}
@@ -2350,42 +2382,77 @@ export default function GuildPage() {
                                 </div>
                               </div>
 
-                              {/* Boutons interactifs façon Discord */}
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                {rrForm.roles.map((r, i) => {
-                                  const btnBg =
-                                    r.style === "PRIMARY" ? "bg-[#5865f2] hover:bg-[#4752c4] text-white" :
-                                    r.style === "SUCCESS" ? "bg-[#248046] hover:bg-[#1a6334] text-white" :
-                                    r.style === "DANGER" ? "bg-[#da373c] hover:bg-[#a1282c] text-white" :
-                                    "bg-[#4e5058] hover:bg-[#6d6f78] text-white"
-
-                                  return (
-                                    <div
-                                      key={i}
-                                      className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold shadow-sm transition ${btnBg}`}
-                                    >
-                                      {r.emoji && <span>{r.emoji}</span>}
-                                      <span>{r.label || "Rôle"}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => setRrForm(prev => ({
-                                          ...prev,
-                                          roles: prev.roles.filter((_, idx) => idx !== i)
-                                        }))}
-                                        title="Supprimer ce rôle"
-                                        className="ml-1 text-white/60 hover:text-white"
-                                      >
-                                        ✕
-                                      </button>
+                              {/* Affichage façon Discord (Boutons ou Menu déroulant) */}
+                              {rrForm.displayType === "dropdown" ? (
+                                <div className="mt-4 space-y-2">
+                                  <div className="rounded border border-white/10 bg-[#1e1f22] p-2.5 text-xs text-[#949ba4] flex items-center justify-between">
+                                    <span>Sélectionnez vos rôles ({rrForm.roles.length} option{rrForm.roles.length > 1 ? "s" : ""})...</span>
+                                    <span>▼</span>
+                                  </div>
+                                  {rrForm.roles.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                      {rrForm.roles.map((r, i) => (
+                                        <span key={i} className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300">
+                                          {r.emoji && <span>{r.emoji}</span>}
+                                          <span>{r.label || "Rôle"}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setRrForm(prev => ({
+                                              ...prev,
+                                              roles: prev.roles.filter((_, idx) => idx !== i)
+                                            }))}
+                                            title="Supprimer"
+                                            className="ml-1 text-slate-500 hover:text-white"
+                                          >
+                                            ✕
+                                          </button>
+                                        </span>
+                                      ))}
                                     </div>
-                                  )
-                                })}
-                                {rrForm.roles.length === 0 && (
-                                  <p className="text-xs italic text-slate-500 py-1">
-                                    Aucun bouton ajouté pour le moment.
-                                  </p>
-                                )}
-                              </div>
+                                  )}
+                                  {rrForm.roles.length === 0 && (
+                                    <p className="text-xs italic text-slate-500 py-1">
+                                      Aucune option ajoutée pour le moment.
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                  {rrForm.roles.map((r, i) => {
+                                    const btnBg =
+                                      r.style === "PRIMARY" ? "bg-[#5865f2] hover:bg-[#4752c4] text-white" :
+                                      r.style === "SUCCESS" ? "bg-[#248046] hover:bg-[#1a6334] text-white" :
+                                      r.style === "DANGER" ? "bg-[#da373c] hover:bg-[#a1282c] text-white" :
+                                      "bg-[#4e5058] hover:bg-[#6d6f78] text-white"
+
+                                    return (
+                                      <div
+                                        key={i}
+                                        className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold shadow-sm transition ${btnBg}`}
+                                      >
+                                        {r.emoji && <span>{r.emoji}</span>}
+                                        <span>{r.label || "Rôle"}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => setRrForm(prev => ({
+                                            ...prev,
+                                            roles: prev.roles.filter((_, idx) => idx !== i)
+                                          }))}
+                                          title="Supprimer ce rôle"
+                                          className="ml-1 text-white/60 hover:text-white"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    )
+                                  })}
+                                  {rrForm.roles.length === 0 && (
+                                    <p className="text-xs italic text-slate-500 py-1">
+                                      Aucun bouton ajouté pour le moment.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -2434,9 +2501,14 @@ export default function GuildPage() {
                                 <div>
                                   <div className="flex items-start justify-between gap-2">
                                     <h4 className="font-bold text-sm text-white">{panel.title || "Panneau de Rôles"}</h4>
-                                    <span className="text-[11px] font-mono text-indigo-400">
-                                      #{targetChannel?.name || panel.channelId}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                                        {panel.displayType === "dropdown" ? "📋 Menu" : "🔘 Boutons"}
+                                      </span>
+                                      <span className="text-[11px] font-mono text-indigo-400">
+                                        #{targetChannel?.name || panel.channelId}
+                                      </span>
+                                    </div>
                                   </div>
                                   {panel.description && (
                                     <p className="mt-1 text-xs text-slate-400 line-clamp-2">{panel.description}</p>

@@ -79,6 +79,7 @@ const guildConfigSchema = new mongoose.Schema({
         title: { type: String, default: "🎭 Rôles" },
         description: { type: String, default: "Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles." },
         color: { type: String, default: "#6366F1" },
+        displayType: { type: String, enum: ["buttons", "dropdown"], default: "buttons" },
         roles: [
           {
             roleId: { type: String, required: true },
