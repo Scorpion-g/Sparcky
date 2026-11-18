@@ -2,7 +2,21 @@ function defaultGuildConfig() {
   return {
     guildId: null,
     welcomeChannel: null,
+    welcomeTitle: null,
+    welcomeMessage: null,
+    welcomeColor: "#22C55E",
+    welcomeThumbnail: true,
+    welcomeImage: null,
+    welcomeDmEnabled: false,
+    welcomeDmMessage: null,
+
     leaveChannel: null,
+    leaveTitle: null,
+    leaveMessage: null,
+    leaveColor: "#EF4444",
+    leaveThumbnail: true,
+    leaveImage: null,
+
     autoRole: null,
     antispam: false,
     antilink: false,
@@ -10,6 +24,11 @@ function defaultGuildConfig() {
     antiBadWords: false,
     badWords: [],
     autoSanction: false,
+    autoSanctionRules: [
+      { warnCount: 3, action: "timeout", durationMinutes: 10 },
+      { warnCount: 5, action: "kick", durationMinutes: 0 },
+      { warnCount: 7, action: "ban", durationMinutes: 0 }
+    ],
     antiRaid: false,
     language: "fr",
     vocChannelId: null,
@@ -35,7 +54,13 @@ function defaultGuildConfig() {
     ticketEnabled: false,
     ticketCategoryId: null,
     ticketSupportRoleId: null,
-    ticketLogChannelId: null
+    ticketLogChannelId: null,
+
+    // Reaction Roles
+    reactionRoles: [],
+
+    // Auto-Répondeur & Commandes Personnalisées
+    customCommands: []
   };
 }
 

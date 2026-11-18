@@ -4,7 +4,7 @@ const GuildConfiguration = require("../models/GuildConfiguration");
 const { t } = require("./t");
 
 /**
- * Vérifie le nombre de warns et applique la sanction automatique
+ * Vérifie le nombre de warns et applique la sanction automatique configurée
  * @param {import("discord.js").GuildMember} member
  * @param {number} warnCount
  */
@@ -16,18 +16,19 @@ async function checkAndSanction(member, warnCount) {
   }).lean();
   if (!guildConfig?.autoSanction) return;
 
-  let action;
+  const rules = Array.isArray(guildConfig.autoSanctionRules) && guildConfig.autoSanctionRules.length > 0
+    ? guildConfig.autoSanctionRules
+    : [
+        { warnCount: 3, action: "timeout", durationMinutes: 10 },
+        { warnCount: 5, action: "kick", durationMinutes: 0 },
+        { warnCount: 7, action: "ban", durationMinutes: 0 }
+      ];
 
-  // Définir les actions selon le nombre de warns
-  if (warnCount === 3) {
-    action = "timeout";
-  } else if (warnCount === 5) {
-    action = "kick";
-  } else if (warnCount === 7) {
-    action = "ban";
-  } else {
-    return; // Pas d'action à prendre
-  }
+  const matchedRule = rules.find(r => Number(r.warnCount) === Number(warnCount));
+  if (!matchedRule) return;
+
+  const action = matchedRule.action;
+  const durationMinutes = Math.max(1, Number(matchedRule.durationMinutes) || 10);
 
   const reasonText = await t({ guildId: member.guild.id }, "AUTOSANCTION.REASON", {
     warnCount,
@@ -36,15 +37,15 @@ async function checkAndSanction(member, warnCount) {
   try {
     const logChannel = member.guild.channels.cache.get(
       guildConfig?.modLogChannel,
-    );
+    ) || await member.guild.channels.fetch(guildConfig?.modLogChannel).catch(() => null);
 
     if (action === "timeout") {
       if (
         member.guild.members.me.permissions.has(
           PermissionFlagsBits.ModerateMembers,
-        )
+        ) && member.moderatable
       ) {
-        await member.timeout(10 * 60 * 1000, reasonText);
+        await member.timeout(durationMinutes * 60 * 1000, reasonText);
 
         const embed = new EmbedBuilder()
           .setColor("#FFFF00")
@@ -52,12 +53,12 @@ async function checkAndSanction(member, warnCount) {
             await t({ guildId: member.guild.id }, "AUTOSANCTION.LOG.TIMEOUT", {
               memberId: member.id,
               warnCount,
-            }),
+            }) + ` (${durationMinutes}m)`,
           )
           .setTimestamp();
 
         if (logChannel && logChannel.isTextBased())
-          logChannel.send({ embeds: [embed] });
+          await logChannel.send({ embeds: [embed] }).catch(() => {});
       }
     } else if (action === "kick") {
       if (member.kickable) {
@@ -74,7 +75,7 @@ async function checkAndSanction(member, warnCount) {
           .setTimestamp();
 
         if (logChannel && logChannel.isTextBased())
-          logChannel.send({ embeds: [embed] });
+          await logChannel.send({ embeds: [embed] }).catch(() => {});
       }
     } else if (action === "ban") {
       if (member.bannable) {
@@ -91,12 +92,12 @@ async function checkAndSanction(member, warnCount) {
           .setTimestamp();
 
         if (logChannel && logChannel.isTextBased())
-          logChannel.send({ embeds: [embed] });
+          await logChannel.send({ embeds: [embed] }).catch(() => {});
       }
     }
   } catch (error) {
     console.error(
-      `Erreur lors de la sanction automatique de ${member.user.tag}:`,
+      `Erreur lors de la sanction automatique de ${member.user?.tag || member.id}:`,
       error,
     );
   }

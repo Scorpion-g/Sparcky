@@ -15,7 +15,7 @@ module.exports = {
 
     if (interaction.customId.startsWith("role_react_")) {
       const roleId = interaction.customId.replace("role_react_", "");
-      const role = interaction.guild.roles.cache.get(roleId);
+      const role = interaction.guild.roles.cache.get(roleId) || await interaction.guild.roles.fetch(roleId).catch(() => null);
 
       if (!role) {
         return interaction.reply({

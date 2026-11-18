@@ -58,7 +58,7 @@ function SelectField({ label, description, value, onChange, options, placeholder
 export default function GuildPage() {
   const navigate = useNavigate()
   const { id } = useParams()
-  const { t, lang: panelLang, setLang } = useLanguage()
+  const { t, setLang } = useLanguage()
   const token = useMemo(() => getJwt(), [])
 
   const [status, setStatus] = useState("loading") // loading | ready | error
@@ -122,7 +122,7 @@ export default function GuildPage() {
 
   // Données Tickets
   const [ticketData, setTicketData] = useState({ settings: null, openTickets: [] })
-  const [ticketLoading, setTicketLoading] = useState(false)
+  const [_ticketLoading, setTicketLoading] = useState(false)
   const [ticketPanelChannelId, setTicketPanelChannelId] = useState("")
   const [ticketTypesStr, setTicketTypesStr] = useState("suggestion, partenariats, problème, autre")
   const [ticketPanelTitle, setTicketPanelTitle] = useState("🎫 Système de Ticket")
@@ -142,6 +142,54 @@ export default function GuildPage() {
   const [gwSubmitting, setGwSubmitting] = useState(false)
   const [gwActionLoading, setGwActionLoading] = useState(null)
   const [gwMessage, setGwMessage] = useState(null)
+
+  // Données Statistiques (Module 1)
+  const [statsData, setStatsData] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+
+  // Données Reaction Roles (Module 2)
+  const [rrForm, setRrForm] = useState({
+    channelId: "",
+    title: "🎭 Choix des Rôles",
+    description: "Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles.",
+    color: "#6366F1",
+    roles: []
+  })
+  const [newRrRole, setNewRrRole] = useState({
+    roleId: "",
+    label: "",
+    emoji: "",
+    style: "PRIMARY"
+  })
+  const [sendingRr, setSendingRr] = useState(false)
+  const [rrActionLoading, setRrActionLoading] = useState(null)
+  const [rrMessage, setRrMessage] = useState(null)
+
+  // Données Journal d'Audit (Module 3)
+  const [auditEvents, setAuditEvents] = useState([])
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditFilter, setAuditFilter] = useState("all")
+  const [auditSearch, setAuditSearch] = useState("")
+  const [auditAutoRefresh, setAuditAutoRefresh] = useState(true)
+  const [hasAuditPermission, setHasAuditPermission] = useState(true)
+
+  // Données Auto-Répondeur & Commandes Custom (Module 4)
+  const [showCcModal, setShowCcModal] = useState(false)
+  const [editingCc, setEditingCc] = useState(null)
+  const [ccForm, setCcForm] = useState({
+    trigger: "",
+    response: "",
+    matchType: "exact",
+    isEmbed: false,
+    embedTitle: "",
+    embedColor: "#6366F1",
+    enabled: true
+  })
+
+  // Données Auto-Sanction personnalisée
+  const [newSanctionWarns, setNewSanctionWarns] = useState(3)
+  const [newSanctionAction, setNewSanctionAction] = useState("timeout")
+  const [newSanctionDuration, setNewSanctionDuration] = useState(10)
 
   function logout() {
     clearJwt()
@@ -179,10 +227,11 @@ export default function GuildPage() {
         setConfig(initialCfg)
         setSavedConfigStr(JSON.stringify(initialCfg))
 
-        // Initialiser le salon par défaut de l'embed et des tickets
+        // Initialiser le salon par défaut de l'embed, des tickets et des reaction roles
         const firstTextCh = payload?.channels?.find(c => c.type === 0 || c.type === 5)
         if (firstTextCh) {
           setEmbedForm(prev => ({ ...prev, channelId: firstTextCh.id }))
+          setRrForm(prev => ({ ...prev, channelId: firstTextCh.id }))
         }
         const ticketChannel = payload?.channels?.find(c => (c.type === 0 || c.type === 5) && c.name?.toLowerCase().includes("ticket"))
         if (ticketChannel) {
@@ -229,8 +278,21 @@ export default function GuildPage() {
       fetchTickets()
     } else if (activeTab === "giveaways" && id && token) {
       fetchGiveaways()
+    } else if (activeTab === "stats" && id && token) {
+      fetchStats()
+    } else if (activeTab === "audit" && id && token) {
+      fetchAuditLogs()
     }
   }, [activeTab, id, token])
+
+  // Actualisation automatique des logs d'audit (toutes les 15s)
+  useEffect(() => {
+    if (activeTab !== "audit" || !auditAutoRefresh || !id || !token) return
+    const timer = setInterval(() => {
+      fetchAuditLogs()
+    }, 15000)
+    return () => clearInterval(timer)
+  }, [activeTab, auditAutoRefresh, id, token])
 
   async function fetchShop() {
     setShopLoading(true)
@@ -830,6 +892,222 @@ export default function GuildPage() {
     }
   }
 
+  // Module 1 : Statistiques
+  async function fetchStats() {
+    setStatsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setStatsData(payload)
+      }
+    } catch {
+      // Ignorer
+    } finally {
+      setStatsLoading(false)
+    }
+  }
+
+  // Module 2 : Reaction Roles
+  async function handleSendReactionRole() {
+    if (!rrForm.channelId) {
+      alert("Veuillez sélectionner un salon Discord pour envoyer le panneau.")
+      return
+    }
+    if (!Array.isArray(rrForm.roles) || rrForm.roles.length === 0) {
+      alert("Veuillez ajouter au moins un rôle.")
+      return
+    }
+    setSendingRr(true)
+    setRrMessage(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/reaction-roles/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(rrForm)
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error || "Erreur lors de l'envoi du panneau")
+      setRrMessage({ type: "success", text: t("rr.sentSuccess") })
+      if (payload?.panel) {
+        setConfig(prev => ({
+          ...prev,
+          reactionRoles: [...(prev?.reactionRoles || []).filter(p => p.id !== payload.panel.id), payload.panel]
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            parsed.reactionRoles = [...(parsed.reactionRoles || []).filter(p => p.id !== payload.panel.id), payload.panel]
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (e) {
+      setRrMessage({ type: "error", text: e.message })
+    } finally {
+      setSendingRr(false)
+    }
+  }
+
+  async function handleDeleteReactionRole(panelId) {
+    if (!window.confirm(t("rr.deleteConfirm"))) return
+    setRrActionLoading(panelId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/reaction-roles/${panelId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setConfig(prev => ({
+          ...prev,
+          reactionRoles: (prev?.reactionRoles || []).filter(p => p.id !== panelId)
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            parsed.reactionRoles = (parsed.reactionRoles || []).filter(p => p.id !== panelId)
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (e) {
+      alert("Erreur suppression: " + e.message)
+    } finally {
+      setRrActionLoading(null)
+    }
+  }
+
+  // Module 3 : Journal d'Audit
+  async function fetchAuditLogs() {
+    setAuditLoading(true)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/logs`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setAuditEvents(payload?.events || [])
+        setHasAuditPermission(payload?.hasAuditPermission !== false)
+      }
+    } catch {
+      // Ignorer
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
+  // Module 4 : Auto-Répondeur & Commandes Custom
+  function handleOpenCcModal(cmd = null) {
+    if (cmd) {
+      setEditingCc(cmd)
+      setCcForm({
+        trigger: cmd.trigger || "",
+        response: cmd.response || "",
+        matchType: cmd.matchType || "exact",
+        isEmbed: Boolean(cmd.isEmbed),
+        embedTitle: cmd.embedTitle || "",
+        embedColor: cmd.embedColor || "#6366F1",
+        enabled: cmd.enabled !== false
+      })
+    } else {
+      setEditingCc(null)
+      setCcForm({
+        trigger: "",
+        response: "",
+        matchType: "exact",
+        isEmbed: false,
+        embedTitle: "",
+        embedColor: "#6366F1",
+        enabled: true
+      })
+    }
+    setShowCcModal(true)
+  }
+
+  function handleSaveCustomCommand() {
+    if (!ccForm.trigger.trim() || !ccForm.response.trim()) {
+      alert("Le déclencheur et la réponse sont obligatoires.")
+      return
+    }
+
+    const currentList = Array.isArray(config?.customCommands) ? [...config.customCommands] : []
+    let updatedList
+
+    if (editingCc) {
+      updatedList = currentList.map(c => (c.id === editingCc.id ? { ...c, ...ccForm } : c))
+    } else {
+      const newCmd = {
+        id: `cmd_${Date.now()}`,
+        ...ccForm,
+        createdAt: new Date().toISOString()
+      }
+      updatedList = [...currentList, newCmd]
+    }
+
+    updateField("customCommands", updatedList)
+    setShowCcModal(false)
+    setEditingCc(null)
+  }
+
+  function handleToggleCustomCommand(cmdId) {
+    const currentList = Array.isArray(config?.customCommands) ? [...config.customCommands] : []
+    const updatedList = currentList.map(c => (c.id === cmdId ? { ...c, enabled: !c.enabled } : c))
+    updateField("customCommands", updatedList)
+  }
+
+  function handleDeleteCustomCommand(cmdId) {
+    if (!window.confirm(t("cc.deleteConfirm"))) return
+    const currentList = Array.isArray(config?.customCommands) ? [...config.customCommands] : []
+    const updatedList = currentList.filter(c => c.id !== cmdId)
+    updateField("customCommands", updatedList)
+  }
+
+  // Fonctions de gestion des règles d'Auto-Sanction
+  function handleAddSanctionRule() {
+    const currentRules = Array.isArray(config?.autoSanctionRules) ? [...config.autoSanctionRules] : [
+      { warnCount: 3, action: "timeout", durationMinutes: 10 },
+      { warnCount: 5, action: "kick", durationMinutes: 0 },
+      { warnCount: 7, action: "ban", durationMinutes: 0 }
+    ]
+
+    const warnNum = Math.max(1, Math.floor(Number(newSanctionWarns)))
+    const existingIdx = currentRules.findIndex(r => Number(r.warnCount) === warnNum)
+
+    const ruleObj = {
+      warnCount: warnNum,
+      action: newSanctionAction,
+      durationMinutes: newSanctionAction === "timeout" ? Math.max(1, Number(newSanctionDuration)) : 0
+    }
+
+    if (existingIdx >= 0) {
+      currentRules[existingIdx] = ruleObj
+    } else {
+      currentRules.push(ruleObj)
+    }
+
+    currentRules.sort((a, b) => a.warnCount - b.warnCount)
+    updateField("autoSanctionRules", currentRules)
+  }
+
+  function handleDeleteSanctionRule(warnCount) {
+    const currentRules = Array.isArray(config?.autoSanctionRules) ? [...config.autoSanctionRules] : [
+      { warnCount: 3, action: "timeout", durationMinutes: 10 },
+      { warnCount: 5, action: "kick", durationMinutes: 0 },
+      { warnCount: 7, action: "ban", durationMinutes: 0 }
+    ]
+    const updated = currentRules.filter(r => Number(r.warnCount) !== Number(warnCount))
+    updateField("autoSanctionRules", updated)
+  }
+
   const guild = data?.guild
   const bot = data?.bot
   const botInGuild = Boolean(data?.botInGuild)
@@ -996,14 +1274,18 @@ export default function GuildPage() {
                       onChange={(e) => setActiveTab(e.target.value)}
                       className="w-full appearance-none rounded-2xl border border-white/10 bg-slate-900/90 px-4 py-3 text-sm font-semibold text-white outline-none focus:border-indigo-500 shadow-xl pr-10"
                     >
+                      <option value="stats">📊 {t("tabs.stats")}</option>
                       <option value="channels">📌 {t("tabs.channels")}</option>
                       <option value="security">🛡️ {t("tabs.security")}</option>
+                      <option value="reactionRoles">🎭 {t("tabs.reactionRoles")} ({config?.reactionRoles?.length || 0})</option>
+                      <option value="customCommands">🤖 {t("tabs.customCommands")} ({config?.customCommands?.length || 0})</option>
                       <option value="economy">🪙 {config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")}</option>
                       <option value="leveling">🏆 {config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")}</option>
                       <option value="giveaways">🎉 {t("tabs.giveaways")}</option>
                       <option value="tickets">🎫 {t("tabs.tickets")}</option>
                       <option value="embeds">📢 {t("tabs.embeds")}</option>
                       <option value="warns">📜 {t("tabs.warns")}</option>
+                      <option value="audit">📜 {t("tabs.audit")}</option>
                       <option value="words">🚫 {t("tabs.words")} ({config?.badWords?.length || 0})</option>
                       <option value="settings">⚙️ {t("tabs.settings")}</option>
                     </select>
@@ -1015,17 +1297,234 @@ export default function GuildPage() {
 
                 {/* Barre d'onglets défilable horizontalement sur mobile & enveloppante sur desktop */}
                 <div className="flex overflow-x-auto no-scrollbar gap-2 border-b border-white/10 pb-3 md:flex-wrap md:pb-4 w-full min-w-0 max-w-full">
+                  <TabButton active={activeTab === "stats"} onClick={() => setActiveTab("stats")} icon="📊" label={t("tabs.stats")} />
                   <TabButton active={activeTab === "channels"} onClick={() => setActiveTab("channels")} icon="📌" label={t("tabs.channels")} />
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
+                  <TabButton active={activeTab === "reactionRoles"} onClick={() => setActiveTab("reactionRoles")} icon="🎭" label={config?.reactionRoles?.length ? `${t("tabs.reactionRoles")} (${config.reactionRoles.length})` : t("tabs.reactionRoles")} />
+                  <TabButton active={activeTab === "customCommands"} onClick={() => setActiveTab("customCommands")} icon="🤖" label={config?.customCommands?.length ? `${t("tabs.customCommands")} (${config.customCommands.length})` : t("tabs.customCommands")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
                   <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")} />
                   <TabButton active={activeTab === "giveaways"} onClick={() => setActiveTab("giveaways")} icon="🎉" label={t("tabs.giveaways")} />
                   <TabButton active={activeTab === "tickets"} onClick={() => setActiveTab("tickets")} icon="🎫" label={t("tabs.tickets")} />
                   <TabButton active={activeTab === "embeds"} onClick={() => setActiveTab("embeds")} icon="📢" label={t("tabs.embeds")} />
                   <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label={t("tabs.warns")} />
+                  <TabButton active={activeTab === "audit"} onClick={() => setActiveTab("audit")} icon="📜" label={t("tabs.audit")} />
                   <TabButton active={activeTab === "words"} onClick={() => setActiveTab("words")} icon="🚫" label={`${t("tabs.words")} (${config?.badWords?.length || 0})`} />
                   <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon="⚙️" label={t("tabs.settings")} />
                 </div>
+
+                {/* Section 0 : Statistiques & Métriques du Serveur */}
+                {activeTab === "stats" && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+                          <span>📊</span> {t("stats.title")}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-400">{t("stats.desc")}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={fetchStats}
+                        disabled={statsLoading}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white disabled:opacity-50 shrink-0"
+                      >
+                        <svg className={`h-4 w-4 ${statsLoading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>{statsLoading ? t("common.loading") : t("common.refresh")}</span>
+                      </button>
+                    </div>
+
+                    {/* Grille des Métriques Clés */}
+                    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur-xl">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-xs font-semibold uppercase tracking-wider">{t("stats.totalMembers")}</span>
+                          <span className="text-lg">👥</span>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
+                          {statsData?.discord?.members ?? guild?.approximate_member_count ?? "—"}
+                        </p>
+                        <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                          <span>{statsData?.discord?.presences ?? 0} {t("stats.onlineMembers")}</span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur-xl">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-xs font-semibold uppercase tracking-wider">{t("stats.totalChannels")}</span>
+                          <span className="text-lg">💬</span>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
+                          {statsData?.discord?.channels ?? textChannels.length + voiceChannels.length}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-400 truncate">
+                          {statsData?.discord?.textChannels ?? textChannels.length} textuels • {statsData?.discord?.voiceChannels ?? voiceChannels.length} vocaux
+                        </p>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur-xl">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-xs font-semibold uppercase tracking-wider">{t("stats.economyCirculation")}</span>
+                          <span className="text-lg">🪙</span>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-amber-400 sm:text-3xl">
+                          {(statsData?.economy?.totalCirculation ?? 0).toLocaleString()} {config?.currencySymbol || "$"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {statsData?.economy?.totalAccounts ?? 0} comptes actifs
+                        </p>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 backdrop-blur-xl">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-xs font-semibold uppercase tracking-wider">{t("stats.totalXp")}</span>
+                          <span className="text-lg">🏆</span>
+                        </div>
+                        <p className="mt-2 text-2xl font-black text-indigo-400 sm:text-3xl">
+                          {(statsData?.leveling?.totalXp ?? 0).toLocaleString()} XP
+                        </p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {statsData?.leveling?.totalRanked ?? 0} membres classés
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Graphique Interactif d'Activité sur 7 Jours (SVG Line / Area Chart) */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-base font-bold text-white">{t("stats.activityChartTitle")}</h3>
+                          <p className="text-xs text-slate-400">{t("stats.activityChartDesc")}</p>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-3 w-3 rounded-full bg-indigo-500" />
+                            <span className="text-slate-300">{t("stats.messages")}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="h-3 w-3 rounded-full bg-emerald-400" />
+                            <span className="text-slate-300">{t("stats.joins")}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 w-full overflow-hidden">
+                        {statsData?.activityChart && statsData.activityChart.length > 0 ? (
+                          <div className="relative w-full h-56">
+                            <svg className="w-full h-full overflow-visible" viewBox="0 0 700 200" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="msgGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#6366F1" stopOpacity="0.4" />
+                                  <stop offset="100%" stopColor="#6366F1" stopOpacity="0.0" />
+                                </linearGradient>
+                              </defs>
+
+                              <line x1="0" y1="40" x2="700" y2="40" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                              <line x1="0" y1="100" x2="700" y2="100" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                              <line x1="0" y1="160" x2="700" y2="160" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+
+                              {(() => {
+                                const maxVal = Math.max(...statsData.activityChart.map(d => d.messages), 10)
+                                const pts = statsData.activityChart.map((d, i) => {
+                                  const x = (i / (statsData.activityChart.length - 1)) * 680 + 10
+                                  const y = 170 - (d.messages / maxVal) * 130
+                                  return { x, y, ...d }
+                                })
+                                const pathD = pts.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x} ${p.y}`, "")
+                                const areaD = `${pathD} L ${pts[pts.length - 1].x} 180 L ${pts[0].x} 180 Z`
+
+                                return (
+                                  <>
+                                    <path d={areaD} fill="url(#msgGradient)" />
+                                    <path d={pathD} fill="none" stroke="#6366F1" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                    {pts.map((p, i) => (
+                                      <g key={i}>
+                                        <circle cx={p.x} cy={p.y} r="5" fill="#6366F1" />
+                                        <text x={p.x} y="196" textAnchor="middle" fill="#94A3B8" fontSize="11" fontWeight="600">{p.day}</text>
+                                        <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold">{p.messages}</text>
+                                      </g>
+                                    ))}
+                                  </>
+                                )
+                              })()}
+                            </svg>
+                          </div>
+                        ) : (
+                          <div className="py-12 text-center text-sm text-slate-400">
+                            {t("stats.noData")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 2 Colonnes de Classement : Top Actifs & Top Riches */}
+                    <div className="grid gap-6 md:grid-cols-2">
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl">
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                          <span>🏆</span> {t("stats.topMembers")}
+                        </h3>
+                        <div className="mt-4 space-y-2">
+                          {(statsData?.leveling?.topLevels || []).length > 0 ? (
+                            statsData.leveling.topLevels.map((user, idx) => (
+                              <div key={user.userId} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/40 p-3 text-sm">
+                                <div className="flex items-center gap-3">
+                                  <span className={`flex h-7 w-7 items-center justify-center rounded-xl font-bold text-xs ${
+                                    idx === 0 ? "bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40" :
+                                    idx === 1 ? "bg-slate-300/20 text-slate-200 ring-1 ring-slate-300/40" :
+                                    idx === 2 ? "bg-amber-700/20 text-amber-500 ring-1 ring-amber-700/40" :
+                                    "bg-white/5 text-slate-400"
+                                  }`}>
+                                    #{idx + 1}
+                                  </span>
+                                  <span className="font-mono text-xs text-slate-300">ID: {user.userId}</span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-bold text-indigo-400">Niv. {user.level}</span>
+                                  <span className="text-xs text-slate-400 ml-2">({user.xp} XP)</span>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="py-6 text-center text-xs text-slate-500">Aucune donnée de niveau disponible.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl">
+                        <h3 className="text-base font-bold text-white flex items-center gap-2">
+                          <span>🪙</span> {t("stats.topEconomy")}
+                        </h3>
+                        <div className="mt-4 space-y-2">
+                          {(statsData?.economy?.topRich || []).length > 0 ? (
+                            statsData.economy.topRich.map((user, idx) => (
+                              <div key={user.userId} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/40 p-3 text-sm">
+                                <div className="flex items-center gap-3">
+                                  <span className={`flex h-7 w-7 items-center justify-center rounded-xl font-bold text-xs ${
+                                    idx === 0 ? "bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/40" :
+                                    idx === 1 ? "bg-slate-300/20 text-slate-200 ring-1 ring-slate-300/40" :
+                                    idx === 2 ? "bg-amber-700/20 text-amber-500 ring-1 ring-amber-700/40" :
+                                    "bg-white/5 text-slate-400"
+                                  }`}>
+                                    #{idx + 1}
+                                  </span>
+                                  <span className="font-mono text-xs text-slate-300">ID: {user.userId}</span>
+                                </div>
+                                <span className="font-bold text-amber-400">
+                                  {user.balance.toLocaleString()} {config?.currencySymbol || "$"}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="py-6 text-center text-xs text-slate-500">Aucune donnée d'économie enregistrée.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Section 1 : Salons & Rôles */}
                 {activeTab === "channels" && (
@@ -1077,6 +1576,323 @@ export default function GuildPage() {
                           options={[{ id: "", name: t("channels.autoDetect") }, ...textChannels]}
                           placeholder={t("channels.autoDetect")}
                         />
+                      </div>
+                    </div>
+
+                    {/* Personnalisation du Message de Bienvenue */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                            <span>🎉</span> {t("welcome.customTitle")}
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {t("welcome.customDesc")}
+                          </p>
+                        </div>
+                        {config?.welcomeChannel ? (
+                          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30">
+                            Activé dans #{data?.channels?.find(c => c.id === config.welcomeChannel)?.name || "salon"}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
+                            Sélectionnez un salon ci-dessus pour activer
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                        {/* Paramètres de Bienvenue */}
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("welcome.titleInput")}
+                              </label>
+                              <input
+                                type="text"
+                                value={config?.welcomeTitle ?? ""}
+                                onChange={e => updateField("welcomeTitle", e.target.value)}
+                                placeholder="Bienvenue {username} !"
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("welcome.colorInput")}
+                              </label>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={config?.welcomeColor || "#22C55E"}
+                                  onChange={e => updateField("welcomeColor", e.target.value)}
+                                  className="h-10 w-12 cursor-pointer rounded-xl border border-white/10 bg-slate-950 p-1"
+                                />
+                                <span className="text-xs font-mono text-slate-400">
+                                  {config?.welcomeColor || "#22C55E"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              {t("welcome.descInput")}
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={config?.welcomeMessage ?? ""}
+                              onChange={e => updateField("welcomeMessage", e.target.value)}
+                              placeholder="Bienvenue {user} sur {server} ! Tu es notre {memberCount}ème membre. Installe-toi confortablement !"
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                            <p className="mt-1.5 text-[11px] text-indigo-300">
+                              💡 {t("welcome.tagsHelp")}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <Toggle
+                              label={t("welcome.thumbnail")}
+                              checked={config?.welcomeThumbnail !== false}
+                              onChange={v => updateField("welcomeThumbnail", v)}
+                            />
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("welcome.image")}
+                              </label>
+                              <input
+                                type="url"
+                                value={config?.welcomeImage ?? ""}
+                                onChange={e => updateField("welcomeImage", e.target.value || null)}
+                                placeholder="https://..."
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Message Privé (DM) de Bienvenue */}
+                          <div className="rounded-2xl border border-white/5 bg-slate-950/60 p-4 space-y-3">
+                            <Toggle
+                              label={t("welcome.dmToggle")}
+                              checked={Boolean(config?.welcomeDmEnabled)}
+                              onChange={v => updateField("welcomeDmEnabled", v)}
+                            />
+
+                            {config?.welcomeDmEnabled && (
+                              <div>
+                                <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                  {t("welcome.dmInput")}
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  value={config?.welcomeDmMessage ?? ""}
+                                  onChange={e => updateField("welcomeDmMessage", e.target.value)}
+                                  placeholder="Salut {username}, bienvenue sur {server} ! N'hésite pas à consulter nos règles si tu as des questions."
+                                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Aperçu Discord en Direct */}
+                        <div className="flex flex-col justify-between rounded-2xl border border-white/5 bg-slate-950 p-5">
+                          <div>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                              {t("welcome.preview")}
+                            </span>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex gap-3 flex-1 min-w-0">
+                                  <div
+                                    className="w-1 rounded-full shrink-0"
+                                    style={{ backgroundColor: config?.welcomeColor || "#22C55E" }}
+                                  />
+                                  <div className="space-y-1.5 flex-1 min-w-0">
+                                    <h4 className="text-sm font-bold text-white break-words">
+                                      {(config?.welcomeTitle || "Bienvenue {username} !")
+                                        .replace(/{username}/g, "Scorpion")
+                                        .replace(/{server}/g, guild?.name || "Mon Serveur")}
+                                    </h4>
+                                    <p className="text-xs text-[#dbdee1] whitespace-pre-wrap break-words leading-relaxed">
+                                      {(config?.welcomeMessage || "Bienvenue {user} sur le serveur {server} ! Tu es notre {memberCount}ème membre.")
+                                        .replace(/{user}/g, "@Scorpion")
+                                        .replace(/{username}/g, "Scorpion")
+                                        .replace(/{server}/g, guild?.name || "Mon Serveur")
+                                        .replace(/{memberCount}/g, String(guild?.approximate_member_count || 128))}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {config?.welcomeThumbnail !== false && (
+                                  <div className="h-12 w-12 rounded-full bg-emerald-600/30 ring-2 ring-emerald-500/40 grid place-items-center text-xs font-bold text-white shrink-0">
+                                    👤
+                                  </div>
+                                )}
+                              </div>
+
+                              {config?.welcomeImage && (
+                                <div className="mt-3 overflow-hidden rounded-lg">
+                                  <img
+                                    src={config.welcomeImage}
+                                    alt="Bannière bienvenue"
+                                    className="w-full max-h-36 object-cover rounded-lg"
+                                    onError={e => { e.target.style.display = "none" }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Personnalisation du Message de Départ (Au Revoir) */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                            <span>👋</span> {t("leave.customTitle")}
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {t("leave.customDesc")}
+                          </p>
+                        </div>
+                        {config?.leaveChannel ? (
+                          <span className="rounded-full bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-300 ring-1 ring-rose-500/30">
+                            Activé dans #{data?.channels?.find(c => c.id === config.leaveChannel)?.name || "salon"}
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300 ring-1 ring-amber-500/30">
+                            Sélectionnez un salon ci-dessus pour activer
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                        {/* Paramètres d'Au Revoir */}
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("leave.titleInput")}
+                              </label>
+                              <input
+                                type="text"
+                                value={config?.leaveTitle ?? ""}
+                                onChange={e => updateField("leaveTitle", e.target.value)}
+                                placeholder="{username} nous a quitté..."
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("leave.colorInput")}
+                              </label>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={config?.leaveColor || "#EF4444"}
+                                  onChange={e => updateField("leaveColor", e.target.value)}
+                                  className="h-10 w-12 cursor-pointer rounded-xl border border-white/10 bg-slate-950 p-1"
+                                />
+                                <span className="text-xs font-mono text-slate-400">
+                                  {config?.leaveColor || "#EF4444"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              {t("leave.descInput")}
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={config?.leaveMessage ?? ""}
+                              onChange={e => updateField("leaveMessage", e.target.value)}
+                              placeholder="Au revoir {username}, nous ne sommes plus que {memberCount} membres sur {server}."
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                            <p className="mt-1.5 text-[11px] text-indigo-300">
+                              💡 Variables : {"{username}"}, {"{server}"}, {"{memberCount}"}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <Toggle
+                              label={t("leave.thumbnail")}
+                              checked={config?.leaveThumbnail !== false}
+                              onChange={v => updateField("leaveThumbnail", v)}
+                            />
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("leave.image")}
+                              </label>
+                              <input
+                                type="url"
+                                value={config?.leaveImage ?? ""}
+                                onChange={e => updateField("leaveImage", e.target.value || null)}
+                                placeholder="https://..."
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Aperçu Discord en Direct */}
+                        <div className="flex flex-col justify-between rounded-2xl border border-white/5 bg-slate-950 p-5">
+                          <div>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                              {t("leave.preview")}
+                            </span>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex gap-3 flex-1 min-w-0">
+                                  <div
+                                    className="w-1 rounded-full shrink-0"
+                                    style={{ backgroundColor: config?.leaveColor || "#EF4444" }}
+                                  />
+                                  <div className="space-y-1.5 flex-1 min-w-0">
+                                    <h4 className="text-sm font-bold text-white break-words">
+                                      {(config?.leaveTitle || "{username} a quitté le serveur")
+                                        .replace(/{username}/g, "Scorpion")
+                                        .replace(/{server}/g, guild?.name || "Mon Serveur")}
+                                    </h4>
+                                    <p className="text-xs text-[#dbdee1] whitespace-pre-wrap break-words leading-relaxed">
+                                      {(config?.leaveMessage || "Au revoir {username}, nous ne sommes plus que {memberCount} membres sur {server}.")
+                                        .replace(/{username}/g, "Scorpion")
+                                        .replace(/{server}/g, guild?.name || "Mon Serveur")
+                                        .replace(/{memberCount}/g, String(guild?.approximate_member_count || 127))}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {config?.leaveThumbnail !== false && (
+                                  <div className="h-12 w-12 rounded-full bg-rose-600/30 ring-2 ring-rose-500/40 grid place-items-center text-xs font-bold text-white shrink-0">
+                                    👤
+                                  </div>
+                                )}
+                              </div>
+
+                              {config?.leaveImage && (
+                                <div className="mt-3 overflow-hidden rounded-lg">
+                                  <img
+                                    src={config.leaveImage}
+                                    alt="Bannière départ"
+                                    className="w-full max-h-36 object-cover rounded-lg"
+                                    onError={e => { e.target.style.display = "none" }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -1145,6 +1961,572 @@ export default function GuildPage() {
                           onChange={v => updateField("antiRaid", v)}
                         />
                       </div>
+                    </div>
+
+                    {/* Gestionnaire des Paliers d'Auto-Sanction */}
+                    {config?.autoSanction && (
+                      <div className="mt-6 rounded-2xl border border-white/5 bg-slate-950/60 p-6 space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h3 className="text-base font-bold text-white flex items-center gap-2">
+                              <span>⚖️</span> {t("autosanction.rulesTitle")}
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-400">
+                              {t("autosanction.rulesDesc")}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-300 ring-1 ring-indigo-500/30 shrink-0">
+                            {(config?.autoSanctionRules || []).length} palier(s) configuré(s)
+                          </span>
+                        </div>
+
+                        {/* Liste des paliers configurés */}
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {((config?.autoSanctionRules && config.autoSanctionRules.length > 0)
+                            ? config.autoSanctionRules
+                            : [
+                                { warnCount: 3, action: "timeout", durationMinutes: 10 },
+                                { warnCount: 5, action: "kick", durationMinutes: 0 },
+                                { warnCount: 7, action: "ban", durationMinutes: 0 }
+                              ]
+                          ).map((rule, idx) => (
+                            <div
+                              key={idx}
+                              className="flex flex-col justify-between rounded-xl border border-white/5 bg-slate-900/80 p-3.5 space-y-2"
+                            >
+                              <div className="flex items-start justify-between">
+                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400/20 font-bold text-xs text-amber-300 ring-1 ring-amber-400/30">
+                                  {rule.warnCount} ⚠️
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSanctionRule(rule.warnCount)}
+                                  className="text-xs text-slate-500 hover:text-rose-400 p-1"
+                                  title="Supprimer ce palier"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              <div>
+                                <p className="font-bold text-xs text-white capitalize">
+                                  {rule.action === "timeout"
+                                    ? `Mute (${rule.durationMinutes || 10} min)`
+                                    : rule.action === "kick"
+                                    ? "Expulsion (Kick)"
+                                    : "Bannissement (Ban)"}
+                                </p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">
+                                  Appliqué à {rule.warnCount} avertissement{rule.warnCount > 1 ? "s" : ""}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Formulaire d'ajout d'un palier */}
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-4 space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                            {t("autosanction.addRule")}
+                          </h4>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-400">
+                                {t("autosanction.warnThreshold")}
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                value={newSanctionWarns}
+                                onChange={e => setNewSanctionWarns(Math.max(1, Number(e.target.value)))}
+                                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[11px] font-semibold text-slate-400">
+                                {t("autosanction.action")}
+                              </label>
+                              <select
+                                value={newSanctionAction}
+                                onChange={e => setNewSanctionAction(e.target.value)}
+                                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              >
+                                <option value="timeout">{t("autosanction.actionTimeout")}</option>
+                                <option value="kick">{t("autosanction.actionKick")}</option>
+                                <option value="ban">{t("autosanction.actionBan")}</option>
+                              </select>
+                            </div>
+
+                            {newSanctionAction === "timeout" ? (
+                              <div>
+                                <label className="text-[11px] font-semibold text-slate-400">
+                                  {t("autosanction.duration")}
+                                </label>
+                                <select
+                                  value={newSanctionDuration}
+                                  onChange={e => setNewSanctionDuration(Number(e.target.value))}
+                                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                >
+                                  <option value={5}>5 minutes</option>
+                                  <option value={10}>10 minutes</option>
+                                  <option value={30}>30 minutes</option>
+                                  <option value={60}>1 heure</option>
+                                  <option value={1440}>1 jour</option>
+                                  <option value={10080}>1 semaine</option>
+                                </select>
+                              </div>
+                            ) : (
+                              <div className="hidden sm:block" />
+                            )}
+
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={handleAddSanctionRule}
+                                className="w-full rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition"
+                              >
+                                + Ajouter
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Section Reaction Roles */}
+                {activeTab === "reactionRoles" && (
+                  <div className="space-y-6">
+                    {/* Header Notification */}
+                    {rrMessage && (
+                      <div
+                        className={`rounded-2xl border p-4 text-sm font-semibold flex items-center justify-between ${
+                          rrMessage.type === "success"
+                            ? "border-emerald-500/30 bg-emerald-950/80 text-emerald-200"
+                            : "border-rose-500/30 bg-rose-950/80 text-rose-200"
+                        }`}
+                      >
+                        <span>{rrMessage.text}</span>
+                        <button type="button" onClick={() => setRrMessage(null)} className="text-xs opacity-70 hover:opacity-100">✕</button>
+                      </div>
+                    )}
+
+                    {/* Créateur de Panneau de Rôles */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <span>🎭</span> {t("rr.title")}
+                      </h2>
+                      <p className="mt-1 text-sm text-slate-400">{t("rr.desc")}</p>
+
+                      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                        {/* Formulaire de configuration */}
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              {t("rr.channel")}
+                            </label>
+                            <select
+                              value={rrForm.channelId}
+                              onChange={e => setRrForm(prev => ({ ...prev, channelId: e.target.value }))}
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            >
+                              <option value="">Sélectionner un salon...</option>
+                              {textChannels.map(ch => (
+                                <option key={ch.id} value={ch.id}>
+                                  # {ch.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="col-span-2">
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("rr.panelTitle")}
+                              </label>
+                              <input
+                                type="text"
+                                value={rrForm.title}
+                                onChange={e => setRrForm(prev => ({ ...prev, title: e.target.value }))}
+                                placeholder="🎭 Choisissez vos rôles"
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                {t("rr.embedColor")}
+                              </label>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  value={rrForm.color}
+                                  onChange={e => setRrForm(prev => ({ ...prev, color: e.target.value }))}
+                                  className="h-10 w-12 cursor-pointer rounded-xl border border-white/10 bg-slate-950 p-1"
+                                />
+                                <span className="text-xs font-mono text-slate-400">{rrForm.color}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              {t("rr.panelDesc")}
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={rrForm.description}
+                              onChange={e => setRrForm(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Cliquez sur les boutons ci-dessous pour obtenir ou retirer vos rôles."
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          {/* Ajout d'un bouton de rôle */}
+                          <div className="rounded-2xl border border-white/5 bg-slate-950/60 p-4 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                              {t("rr.addRole")}
+                            </h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <select
+                                  value={newRrRole.roleId}
+                                  onChange={e => {
+                                    const rId = e.target.value
+                                    const foundRole = data?.roles?.find(r => r.id === rId)
+                                    setNewRrRole(prev => ({
+                                      ...prev,
+                                      roleId: rId,
+                                      label: prev.label || foundRole?.name || ""
+                                    }))
+                                  }}
+                                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                >
+                                  <option value="">Sélectionner un rôle...</option>
+                                  {(data?.roles || []).filter(r => r.id !== guild?.id).map(r => (
+                                    <option key={r.id} value={r.id}>{r.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <input
+                                  type="text"
+                                  placeholder={t("rr.btnLabel")}
+                                  value={newRrRole.label}
+                                  onChange={e => setNewRrRole(prev => ({ ...prev, label: e.target.value }))}
+                                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <input
+                                  type="text"
+                                  placeholder={t("rr.btnEmoji")}
+                                  value={newRrRole.emoji}
+                                  onChange={e => setNewRrRole(prev => ({ ...prev, emoji: e.target.value }))}
+                                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                />
+                              </div>
+
+                              <div>
+                                <select
+                                  value={newRrRole.style}
+                                  onChange={e => setNewRrRole(prev => ({ ...prev, style: e.target.value }))}
+                                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                >
+                                  <option value="PRIMARY">{t("rr.stylePrimary")}</option>
+                                  <option value="SECONDARY">{t("rr.styleSecondary")}</option>
+                                  <option value="SUCCESS">{t("rr.styleSuccess")}</option>
+                                  <option value="DANGER">{t("rr.styleDanger")}</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!newRrRole.roleId) {
+                                  alert("Veuillez sélectionner un rôle.")
+                                  return
+                                }
+                                if (rrForm.roles.some(r => r.roleId === newRrRole.roleId)) {
+                                  alert("Ce rôle est déjà dans la liste.")
+                                  return
+                                }
+                                setRrForm(prev => ({
+                                  ...prev,
+                                  roles: [...prev.roles, { ...newRrRole }]
+                                }))
+                                setNewRrRole({ roleId: "", label: "", emoji: "", style: "PRIMARY" })
+                              }}
+                              className="w-full rounded-xl bg-indigo-600/20 py-2 text-xs font-bold text-indigo-300 ring-1 ring-indigo-500/30 hover:bg-indigo-600/30 transition"
+                            >
+                              + Ajouter ce bouton
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Prévisualisation Directe façon Discord */}
+                        <div className="flex flex-col justify-between rounded-2xl border border-white/5 bg-slate-950 p-5">
+                          <div>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                              Aperçu Discord en direct
+                            </span>
+                            <div className="mt-3 overflow-hidden rounded-xl bg-[#2b2d31] p-4 text-[#dbdee1] shadow-xl">
+                              <div className="flex gap-3">
+                                <div
+                                  className="w-1 rounded-full shrink-0"
+                                  style={{ backgroundColor: rrForm.color || "#6366F1" }}
+                                />
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                  <h4 className="text-sm font-bold text-white break-words">
+                                    {rrForm.title || "Titre du panneau"}
+                                  </h4>
+                                  <p className="text-xs text-[#dbdee1] whitespace-pre-wrap break-words leading-relaxed">
+                                    {rrForm.description || "Description du panneau..."}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Boutons interactifs façon Discord */}
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {rrForm.roles.map((r, i) => {
+                                  const btnBg =
+                                    r.style === "PRIMARY" ? "bg-[#5865f2] hover:bg-[#4752c4] text-white" :
+                                    r.style === "SUCCESS" ? "bg-[#248046] hover:bg-[#1a6334] text-white" :
+                                    r.style === "DANGER" ? "bg-[#da373c] hover:bg-[#a1282c] text-white" :
+                                    "bg-[#4e5058] hover:bg-[#6d6f78] text-white"
+
+                                  return (
+                                    <div
+                                      key={i}
+                                      className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold shadow-sm transition ${btnBg}`}
+                                    >
+                                      {r.emoji && <span>{r.emoji}</span>}
+                                      <span>{r.label || "Rôle"}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setRrForm(prev => ({
+                                          ...prev,
+                                          roles: prev.roles.filter((_, idx) => idx !== i)
+                                        }))}
+                                        title="Supprimer ce rôle"
+                                        className="ml-1 text-white/60 hover:text-white"
+                                      >
+                                        ✕
+                                      </button>
+                                    </div>
+                                  )
+                                })}
+                                {rrForm.roles.length === 0 && (
+                                  <p className="text-xs italic text-slate-500 py-1">
+                                    Aucun bouton ajouté pour le moment.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-6">
+                            <button
+                              type="button"
+                              onClick={handleSendReactionRole}
+                              disabled={sendingRr || rrForm.roles.length === 0}
+                              className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition disabled:opacity-50"
+                            >
+                              {sendingRr ? (
+                                <>
+                                  <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                  </svg>
+                                  <span>{t("rr.sending")}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>🚀</span>
+                                  <span>{t("rr.sendDiscord")}</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Liste des Panneaux Existants */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>📋</span> {t("rr.existingPanels")}
+                      </h3>
+
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        {(config?.reactionRoles || []).length > 0 ? (
+                          config.reactionRoles.map(panel => {
+                            const targetChannel = data?.channels?.find(c => c.id === panel.channelId)
+                            return (
+                              <div
+                                key={panel.id}
+                                className="flex flex-col justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-4 space-y-3"
+                              >
+                                <div>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h4 className="font-bold text-sm text-white">{panel.title || "Panneau de Rôles"}</h4>
+                                    <span className="text-[11px] font-mono text-indigo-400">
+                                      #{targetChannel?.name || panel.channelId}
+                                    </span>
+                                  </div>
+                                  {panel.description && (
+                                    <p className="mt-1 text-xs text-slate-400 line-clamp-2">{panel.description}</p>
+                                  )}
+
+                                  <div className="mt-3 flex flex-wrap gap-1.5">
+                                    {(panel.roles || []).map((r, ri) => (
+                                      <span
+                                        key={ri}
+                                        className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-0.5 text-[11px] font-medium text-slate-300 ring-1 ring-white/10"
+                                      >
+                                        {r.emoji && <span>{r.emoji}</span>}
+                                        <span>{r.label || "Rôle"}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between border-t border-white/5 pt-3 text-xs">
+                                  <span className="text-[11px] text-slate-500">
+                                    {panel.messageId ? `ID: ${panel.messageId.slice(0, 10)}...` : "Envoyé"}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteReactionRole(panel.id)}
+                                    disabled={rrActionLoading === panel.id}
+                                    className="rounded-lg bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 transition disabled:opacity-50"
+                                  >
+                                    {rrActionLoading === panel.id ? t("common.loading") : t("common.delete")}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <div className="col-span-2 py-8 text-center text-sm text-slate-500">
+                            {t("rr.noPanels")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section Auto-Répondeur & Commandes Personnalisées */}
+                {activeTab === "customCommands" && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+                          <span>🤖</span> {t("cc.title")}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-400">{t("cc.desc")}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCcModal()}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition shrink-0"
+                      >
+                        {t("cc.createBtn")}
+                      </button>
+                    </div>
+
+                    {/* Aide sur les balises dynamiques */}
+                    <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4 text-xs text-indigo-300">
+                      <span className="font-bold">💡 {t("cc.tagsHelp")}</span>
+                    </div>
+
+                    {/* Liste des Déclencheurs Existants */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {(config?.customCommands || []).length > 0 ? (
+                        config.customCommands.map(cmd => (
+                          <div
+                            key={cmd.id}
+                            className={`flex flex-col justify-between rounded-3xl border p-5 transition ${
+                              cmd.enabled !== false
+                                ? "border-white/10 bg-slate-900/60"
+                                : "border-white/5 bg-slate-950/40 opacity-60"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-bold text-white bg-white/10 px-2.5 py-1 rounded-xl">
+                                    {cmd.trigger}
+                                  </span>
+                                  <span className="rounded-lg bg-indigo-500/20 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                                    {cmd.matchType === "startsWith"
+                                      ? "Commence par"
+                                      : cmd.matchType === "contains"
+                                      ? "Contient"
+                                      : "Exact"}
+                                  </span>
+                                  {cmd.isEmbed && (
+                                    <span className="rounded-lg bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
+                                      Embed
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleCustomCommand(cmd.id)}
+                                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                                    cmd.enabled !== false ? "bg-indigo-600" : "bg-slate-700"
+                                  }`}
+                                >
+                                  <span
+                                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                                      cmd.enabled !== false ? "translate-x-4" : "translate-x-0"
+                                    }`}
+                                  />
+                                </button>
+                              </div>
+
+                              <div className="mt-3 rounded-xl bg-slate-950/60 p-3 text-xs text-slate-300 line-clamp-3">
+                                {cmd.isEmbed && cmd.embedTitle && (
+                                  <p className="font-bold text-white mb-1">{cmd.embedTitle}</p>
+                                )}
+                                <p className="whitespace-pre-wrap">{cmd.response}</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-end gap-2 border-t border-white/5 pt-3">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenCcModal(cmd)}
+                                className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/10"
+                              >
+                                {t("common.edit")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCustomCommand(cmd.id)}
+                                className="rounded-xl bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20"
+                              >
+                                {t("common.delete")}
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="col-span-2 rounded-3xl border border-white/5 bg-slate-900/40 py-12 text-center text-sm text-slate-400">
+                          {t("cc.noTriggers")}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -2779,6 +4161,203 @@ export default function GuildPage() {
                   </div>
                 )}
 
+                {/* Section Journal d'Audit & Logs en Direct */}
+                {activeTab === "audit" && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
+                          <span>📜</span> {t("audit.title")}
+                        </h2>
+                        <p className="mt-1 text-sm text-slate-400">{t("audit.desc")}</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Toggle Auto-Refresh */}
+                        <button
+                          type="button"
+                          onClick={() => setAuditAutoRefresh(prev => !prev)}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                            auditAutoRefresh
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                              : "border-white/10 bg-white/5 text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          <span className={`h-2 w-2 rounded-full ${auditAutoRefresh ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
+                          <span>{t("audit.liveUpdates")}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={fetchAuditLogs}
+                          disabled={auditLoading}
+                          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white disabled:opacity-50"
+                        >
+                          <svg className={`h-4 w-4 ${auditLoading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>{auditLoading ? t("common.loading") : t("common.refresh")}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {!hasAuditPermission && (
+                      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200 flex items-start gap-3">
+                        <span className="text-base">⚠️</span>
+                        <div>
+                          <p className="font-bold">Permissions Discord incomplètes</p>
+                          <p className="mt-0.5 text-amber-300/80">{t("audit.permissionWarning")}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Filtres et Recherche */}
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { id: "all", label: t("audit.filterAll") },
+                          { id: "moderation", label: t("audit.filterMod") },
+                          { id: "roles", label: t("audit.filterRoles") },
+                          { id: "channels", label: t("audit.filterChannels") },
+                          { id: "messages", label: t("audit.filterMessages") }
+                        ].map(f => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setAuditFilter(f.id)}
+                            className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+                              auditFilter === f.id
+                                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                                : "border border-white/5 bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-900"
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="relative sm:w-72">
+                        <input
+                          type="text"
+                          value={auditSearch}
+                          onChange={e => setAuditSearch(e.target.value)}
+                          placeholder={t("audit.searchPlaceholder")}
+                          className="w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-indigo-500"
+                        />
+                        {auditSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setAuditSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-white"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Liste des Événements du Journal d'Audit */}
+                    <div className="space-y-3">
+                      {(() => {
+                        const filtered = auditEvents.filter(ev => {
+                          if (auditFilter !== "all" && ev.category !== auditFilter) return false
+                          if (auditSearch.trim()) {
+                            const q = auditSearch.toLowerCase()
+                            const matchActor = ev.executor?.username?.toLowerCase().includes(q)
+                            const matchTarget = ev.target?.username?.toLowerCase().includes(q) || ev.target?.id?.includes(q)
+                            const matchAction = ev.action?.toLowerCase().includes(q)
+                            const matchReason = ev.reason?.toLowerCase().includes(q)
+                            return matchActor || matchTarget || matchAction || matchReason
+                          }
+                          return true
+                        })
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="rounded-3xl border border-white/5 bg-slate-900/40 py-16 text-center text-sm text-slate-400">
+                              <span className="text-3xl block mb-2">📜</span>
+                              {t("audit.noEvents")}
+                            </div>
+                          )
+                        }
+
+                        return filtered.map(ev => {
+                          const badgeClass =
+                            ev.badge === "danger"
+                              ? "bg-rose-500/20 text-rose-300 ring-rose-500/30"
+                              : ev.badge === "warning"
+                              ? "bg-amber-500/20 text-amber-300 ring-amber-500/30"
+                              : ev.badge === "success"
+                              ? "bg-emerald-500/20 text-emerald-300 ring-emerald-500/30"
+                              : "bg-indigo-500/20 text-indigo-300 ring-indigo-500/30"
+
+                          const timeFormatted = new Date(ev.timestamp).toLocaleString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                          })
+
+                          return (
+                            <div
+                              key={ev.id}
+                              className="flex flex-col gap-3 rounded-2xl border border-white/5 bg-slate-900/60 p-4 transition hover:border-white/10 sm:flex-row sm:items-center sm:justify-between"
+                            >
+                              <div className="flex items-start gap-3.5 min-w-0">
+                                {ev.executor?.avatar ? (
+                                  <img
+                                    src={ev.executor.avatar}
+                                    alt={ev.executor.username}
+                                    className="h-10 w-10 rounded-full object-cover ring-2 ring-white/10 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="grid h-10 w-10 place-items-center rounded-full bg-indigo-600/20 text-xs font-bold text-indigo-300 ring-2 ring-indigo-500/30 shrink-0">
+                                    {(ev.executor?.username || "?").slice(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+
+                                <div className="space-y-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-sm text-white">
+                                      {ev.executor?.username || "Système"}
+                                    </span>
+                                    {ev.executor?.bot && (
+                                      <span className="rounded bg-indigo-500/30 px-1.5 py-0.2 text-[10px] font-bold text-indigo-200">
+                                        BOT
+                                      </span>
+                                    )}
+                                    <span className={`rounded-lg px-2 py-0.5 text-xs font-semibold ring-1 ${badgeClass}`}>
+                                      {ev.action}
+                                    </span>
+                                    {ev.target && (
+                                      <span className="text-xs text-slate-300">
+                                        → <span className="font-semibold text-white">{ev.target.username || `ID: ${ev.target.id}`}</span>
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {ev.reason && (
+                                    <p className="text-xs text-slate-400 break-words">
+                                      <span className="text-slate-500 font-medium">Motif :</span> {ev.reason}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="shrink-0 text-right sm:text-right">
+                                <span className="font-mono text-xs text-slate-500">
+                                  {timeFormatted}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 {/* Section 8 : Mots Interdits */}
                 {activeTab === "words" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
@@ -3145,6 +4724,150 @@ export default function GuildPage() {
                 className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white hover:bg-indigo-500"
               >
                 Confirmer l'ajustement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'Ajout / Édition de Commande Personnalisée (Auto-Répondeur) */}
+      {showCcModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>🤖</span>
+                <span>{editingCc ? "Modifier le déclencheur" : "Nouveau Déclencheur"}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCcModal(false)
+                  setEditingCc(null)
+                }}
+                className="rounded-lg p-1 text-slate-400 hover:text-white hover:bg-white/5"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="font-bold uppercase tracking-wider text-slate-300">
+                  {t("cc.trigger")}
+                </label>
+                <input
+                  type="text"
+                  value={ccForm.trigger}
+                  onChange={e => setCcForm(prev => ({ ...prev, trigger: e.target.value }))}
+                  placeholder="ex: !ip, !site, salut"
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold uppercase tracking-wider text-slate-300">
+                  {t("cc.matchType")}
+                </label>
+                <select
+                  value={ccForm.matchType}
+                  onChange={e => setCcForm(prev => ({ ...prev, matchType: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                >
+                  <option value="exact">{t("cc.matchExact")}</option>
+                  <option value="startsWith">{t("cc.matchStartsWith")}</option>
+                  <option value="contains">{t("cc.matchContains")}</option>
+                </select>
+              </div>
+
+              {/* Format de réponse (Texte ou Embed) */}
+              <div className="rounded-2xl border border-white/5 bg-slate-950/60 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-200">
+                    {t("cc.isEmbed")}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setCcForm(prev => ({ ...prev, isEmbed: !prev.isEmbed }))}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                      ccForm.isEmbed ? "bg-indigo-600" : "bg-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                        ccForm.isEmbed ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {ccForm.isEmbed && (
+                  <div className="grid grid-cols-3 gap-2.5 pt-1">
+                    <div className="col-span-2">
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        {t("cc.embedTitle")}
+                      </label>
+                      <input
+                        type="text"
+                        value={ccForm.embedTitle}
+                        onChange={e => setCcForm(prev => ({ ...prev, embedTitle: e.target.value }))}
+                        placeholder="Titre de l'embed"
+                        className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-400">
+                        {t("cc.embedColor")}
+                      </label>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={ccForm.embedColor}
+                          onChange={e => setCcForm(prev => ({ ...prev, embedColor: e.target.value }))}
+                          className="h-8 w-10 cursor-pointer rounded-lg border border-white/10 bg-slate-900 p-0.5"
+                        />
+                        <span className="text-[10px] font-mono text-slate-400">{ccForm.embedColor}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="font-bold uppercase tracking-wider text-slate-300">
+                  {t("cc.response")}
+                </label>
+                <textarea
+                  rows={3}
+                  value={ccForm.response}
+                  onChange={e => setCcForm(prev => ({ ...prev, response: e.target.value }))}
+                  placeholder="Bonjour {user}, notre site web est : https://monsite.fr"
+                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="rounded-xl bg-indigo-500/10 p-2.5 text-[11px] text-indigo-300 font-medium">
+                💡 {t("cc.tagsHelp")}
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 pt-2 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCcModal(false)
+                  setEditingCc(null)
+                }}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCustomCommand}
+                className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500"
+              >
+                {editingCc ? "Mettre à jour" : "Créer le déclencheur"}
               </button>
             </div>
           </div>

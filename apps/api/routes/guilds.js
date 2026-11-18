@@ -226,7 +226,21 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
   // Whitelist
   const next = await setGuildConfig(guildId, {
     welcomeChannel: cleanChannel(patch.welcomeChannel),
+    welcomeTitle: typeof patch.welcomeTitle === "string" ? patch.welcomeTitle.slice(0, 256) : (patch.welcomeTitle === null ? null : undefined),
+    welcomeMessage: typeof patch.welcomeMessage === "string" ? patch.welcomeMessage.slice(0, 2048) : (patch.welcomeMessage === null ? null : undefined),
+    welcomeColor: typeof patch.welcomeColor === "string" ? patch.welcomeColor.slice(0, 16) : undefined,
+    welcomeThumbnail: typeof patch.welcomeThumbnail === "boolean" ? patch.welcomeThumbnail : undefined,
+    welcomeImage: typeof patch.welcomeImage === "string" ? patch.welcomeImage.slice(0, 512) : (patch.welcomeImage === null ? null : undefined),
+    welcomeDmEnabled: typeof patch.welcomeDmEnabled === "boolean" ? patch.welcomeDmEnabled : undefined,
+    welcomeDmMessage: typeof patch.welcomeDmMessage === "string" ? patch.welcomeDmMessage.slice(0, 2048) : (patch.welcomeDmMessage === null ? null : undefined),
+
     leaveChannel: cleanChannel(patch.leaveChannel),
+    leaveTitle: typeof patch.leaveTitle === "string" ? patch.leaveTitle.slice(0, 256) : (patch.leaveTitle === null ? null : undefined),
+    leaveMessage: typeof patch.leaveMessage === "string" ? patch.leaveMessage.slice(0, 2048) : (patch.leaveMessage === null ? null : undefined),
+    leaveColor: typeof patch.leaveColor === "string" ? patch.leaveColor.slice(0, 16) : undefined,
+    leaveThumbnail: typeof patch.leaveThumbnail === "boolean" ? patch.leaveThumbnail : undefined,
+    leaveImage: typeof patch.leaveImage === "string" ? patch.leaveImage.slice(0, 512) : (patch.leaveImage === null ? null : undefined),
+
     autoRole: cleanChannel(patch.autoRole),
     modLogChannel: cleanChannel(patch.modLogChannel),
     vocChannelId: cleanChannel(patch.vocChannelId),
@@ -236,6 +250,15 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     antilink: typeof patch.antilink === "boolean" ? patch.antilink : undefined,
     antiBadWords: typeof patch.antiBadWords === "boolean" ? patch.antiBadWords : undefined,
     autoSanction: typeof patch.autoSanction === "boolean" ? patch.autoSanction : undefined,
+    autoSanctionRules: Array.isArray(patch.autoSanctionRules)
+      ? patch.autoSanctionRules
+          .filter(r => r && Number(r.warnCount) > 0 && ["timeout", "kick", "ban"].includes(r.action))
+          .map(r => ({
+            warnCount: Math.floor(Number(r.warnCount)),
+            action: r.action,
+            durationMinutes: r.action === "timeout" ? Math.max(1, Math.floor(Number(r.durationMinutes) || 10)) : 0
+          }))
+      : undefined,
     antiRaid: typeof patch.antiRaid === "boolean" ? patch.antiRaid : undefined,
 
     language: cleanLanguage && ["fr", "en", "es"].includes(cleanLanguage) ? cleanLanguage : undefined,
@@ -261,6 +284,12 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     ticketCategoryId: cleanChannel(patch.ticketCategoryId),
     ticketSupportRoleId: cleanChannel(patch.ticketSupportRoleId),
     ticketLogChannelId: cleanChannel(patch.ticketLogChannelId),
+
+    // Reaction Roles
+    reactionRoles: Array.isArray(patch.reactionRoles) ? patch.reactionRoles : undefined,
+
+    // Auto-Répondeur & Commandes Personnalisées
+    customCommands: Array.isArray(patch.customCommands) ? patch.customCommands : undefined,
   })
 
   // Synchroniser également dans la collection ticketsettings pour le bot Discord

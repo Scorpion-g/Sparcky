@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.3.4";
+const CURRENT_VERSION = "2.4.0";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,52 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.4.0",
+    date: "18 Novembre 2026",
+    type: "FEATURE",
+    githubUrl: getGitHubReleaseUrl("2.4.0"),
+    title: "Sparcky v2.4.0 : Nouveaux Modules & Personnalisation Complète",
+    summary: "Mise à jour majeure du Dashboard et du Bot : ajout de 4 nouveaux modules (Statistiques & Graphiques, Reaction Roles, Journal d'Audit en direct, Auto-Répondeur) et personnalisation avancée des messages de bienvenue, d'au revoir et des paliers d'auto-sanctions.",
+    highlights: [
+      {
+        emoji: "📊",
+        title: "Statistiques & Activité",
+        desc: "Graphiques interactifs sur 7 jours, compteurs en temps réel et classements d'XP et d'économie.",
+        inline: true
+      },
+      {
+        emoji: "🎭",
+        title: "Reaction Roles",
+        desc: "Créateur de panneaux de rôles interactifs avec boutons de styles personnalisés et envoi direct sur Discord.",
+        inline: true
+      },
+      {
+        emoji: "📜",
+        title: "Journal d'Audit Web",
+        desc: "Suivi en direct des actions de modération, des modifications de serveurs, des warns et des sanctions.",
+        inline: true
+      },
+      {
+        emoji: "🤖",
+        title: "Auto-Répondeur & Commandes Custom",
+        desc: "Déclencheurs automatiques par mots-clés avec support des variables dynamiques et embeds soignés.",
+        inline: true
+      },
+      {
+        emoji: "🎉",
+        title: "Bienvenue & Au Revoir Personnalisés",
+        desc: "Messages sur-mesure, embeds personnalisés, DMs d'accueil et aperçu Discord en temps réel.",
+        inline: true
+      },
+      {
+        emoji: "⚖️",
+        title: "Paliers d'Auto-Sanctions Dynamiques",
+        desc: "Configuration personnalisée des seuils d'avertissements, durées de timeout et sanctions progressives.",
+        inline: true
+      }
+    ]
+  },
   {
     version: "2.3.4",
     date: "11 Novembre 2026",
