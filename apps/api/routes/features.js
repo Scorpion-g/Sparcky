@@ -1435,4 +1435,417 @@ router.delete("/guilds/:guildId/reaction-roles/:id", authenticate, async (req, r
   }
 })
 
+// ==========================================
+// MODULE 4 : INTÉGRATIONS RÉSEAUX SOCIAUX (YouTube & Twitch)
+// ==========================================
+
+async function resolveYouTubeChannel(input) {
+  if (!input || typeof input !== "string") return null
+  const trimmed = input.trim()
+
+  if (/^UC[a-zA-Z0-9_-]{22}$/.test(trimmed)) {
+    try {
+      const feedRes = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${trimmed}`)
+      if (feedRes.ok) {
+        const xml = await feedRes.text()
+        const titleMatch = xml.match(/<title>([^<]+)<\/title>/)
+        return {
+          channelId: trimmed,
+          channelTitle: titleMatch ? titleMatch[1] : trimmed,
+          channelHandle: trimmed
+        }
+      }
+    } catch {}
+  }
+
+  let handle = trimmed
+  if (handle.includes("youtube.com/")) {
+    const parts = handle.split("youtube.com/")
+    handle = parts[1]?.split(/[?/#]/)[0] || handle
+  }
+  if (!handle.startsWith("@") && !handle.startsWith("channel/")) {
+    handle = `@${handle}`
+  }
+
+  try {
+    const res = await fetch(`https://www.youtube.com/${handle}`, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    })
+    if (!res.ok) return null
+    const html = await res.text()
+
+    const rssMatch = html.match(/feeds\/videos\.xml\?channel_id=([^"]+)/)
+    const channelId = rssMatch ? rssMatch[1] : null
+    if (!channelId) return null
+
+    const feedRes = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`)
+    let channelTitle = handle
+    if (feedRes.ok) {
+      const xml = await feedRes.text()
+      const titleMatch = xml.match(/<title>([^<]+)<\/title>/)
+      if (titleMatch) channelTitle = titleMatch[1]
+    }
+
+    return { channelId, channelTitle, channelHandle: handle }
+  } catch {
+    return null
+  }
+}
+
+async function verifyTwitchStreamer(streamerLogin) {
+  try {
+    const login = streamerLogin.toLowerCase().trim()
+    const query = `query { user(login: "${login}") { id displayName } }`
+    const res = await fetch("https://gql.twitch.tv/gql", {
+      method: "POST",
+      headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "application/json" },
+      body: JSON.stringify({ query })
+    })
+    if (!res.ok) return null
+    const json = await res.json()
+    const user = json?.data?.user
+    if (!user) return null
+    return { streamerLogin: login, streamerName: user.displayName || login }
+  } catch {
+    return null
+  }
+}
+
+// Ajouter / Configurer une alerte YouTube
+router.post("/guilds/:guildId/integrations/youtube", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  const { channelInput, discordChannelId, roleId = null, customMessage = null } = req.body || {}
+
+  if (!channelInput || !discordChannelId) {
+    return res.status(400).json({ error: "Lien/Nom de la chaîne YouTube et Salon Discord requis." })
+  }
+
+  try {
+    const resolved = await resolveYouTubeChannel(channelInput)
+    if (!resolved) {
+      return res.status(404).json({ error: "Impossible de trouver cette chaîne YouTube. Vérifiez le lien ou le @handle." })
+    }
+
+    // Récupérer la dernière vidéo actuelle pour initialiser le lastVideoId
+    let initialLastVideoId = null
+    try {
+      const feedRes = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${resolved.channelId}`)
+      if (feedRes.ok) {
+        const xml = await feedRes.text()
+        const firstEntry = xml.split("<entry>")[1]
+        initialLastVideoId = firstEntry?.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1] || null
+      }
+    } catch {}
+
+    const alertId = `yt_${Date.now()}`
+    const alertObj = {
+      id: alertId,
+      channelId: resolved.channelId,
+      channelTitle: resolved.channelTitle,
+      channelHandle: resolved.channelHandle,
+      discordChannelId,
+      roleId: roleId || null,
+      customMessage: customMessage || "🎬 **Nouvelle vidéo de {author} !**\n\n📌 **{title}**\n👉 {url}",
+      lastVideoId: initialLastVideoId,
+      enabled: true,
+      createdAt: new Date()
+    }
+
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    const currentYt = Array.isArray(cfg?.integrations?.youtube) ? [...cfg.integrations.youtube] : []
+
+    // Remplacer si même channelId existe déjà ou ajouter
+    const existingIdx = currentYt.findIndex(y => y.channelId === resolved.channelId)
+    if (existingIdx >= 0) {
+      currentYt[existingIdx] = alertObj
+    } else {
+      currentYt.push(alertObj)
+    }
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { "integrations.youtube": currentYt, updatedAt: new Date() } },
+      { upsert: true }
+    )
+
+    return res.json({ success: true, alert: alertObj })
+  } catch (err) {
+    console.error("POST integrations/youtube error:", err)
+    return res.status(500).json({ error: "Erreur lors de la configuration de l'alerte YouTube." })
+  }
+})
+
+// Supprimer une alerte YouTube
+router.delete("/guilds/:guildId/integrations/youtube/:alertId", authenticate, async (req, res) => {
+  const { guildId, alertId } = req.params
+
+  try {
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    const currentYt = Array.isArray(cfg?.integrations?.youtube) ? cfg.integrations.youtube : []
+    const updatedYt = currentYt.filter(a => a.id !== alertId)
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { "integrations.youtube": updatedYt, updatedAt: new Date() } }
+    )
+
+    return res.json({ success: true, alertId })
+  } catch (err) {
+    console.error("DELETE integrations/youtube error:", err)
+    return res.status(500).json({ error: "Erreur lors de la suppression de l'alerte YouTube." })
+  }
+})
+
+// Ajouter / Configurer une alerte Twitch
+router.post("/guilds/:guildId/integrations/twitch", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  const { streamerLogin, discordChannelId, roleId = null, customMessage = null } = req.body || {}
+
+  if (!streamerLogin || !discordChannelId) {
+    return res.status(400).json({ error: "Nom de chaîne Twitch et Salon Discord requis." })
+  }
+
+  try {
+    const verified = await verifyTwitchStreamer(streamerLogin)
+    if (!verified) {
+      return res.status(404).json({ error: "Chaîne Twitch introuvable. Vérifiez l'identifiant du streamer." })
+    }
+
+    const alertId = `tw_${Date.now()}`
+    const alertObj = {
+      id: alertId,
+      streamerLogin: verified.streamerLogin,
+      streamerName: verified.streamerName,
+      discordChannelId,
+      roleId: roleId || null,
+      customMessage: customMessage || "🔴 **{streamer} est en direct sur Twitch !**\n\n🎮 Jeu : **{game}**\n📌 **{title}**\n👉 {url}",
+      isLive: false,
+      lastStreamId: null,
+      enabled: true,
+      createdAt: new Date()
+    }
+
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    const currentTw = Array.isArray(cfg?.integrations?.twitch) ? [...cfg.integrations.twitch] : []
+
+    const existingIdx = currentTw.findIndex(t => t.streamerLogin === verified.streamerLogin)
+    if (existingIdx >= 0) {
+      currentTw[existingIdx] = alertObj
+    } else {
+      currentTw.push(alertObj)
+    }
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { "integrations.twitch": currentTw, updatedAt: new Date() } },
+      { upsert: true }
+    )
+
+    return res.json({ success: true, alert: alertObj })
+  } catch (err) {
+    console.error("POST integrations/twitch error:", err)
+    return res.status(500).json({ error: "Erreur lors de la configuration de l'alerte Twitch." })
+  }
+})
+
+// Supprimer une alerte Twitch
+router.delete("/guilds/:guildId/integrations/twitch/:alertId", authenticate, async (req, res) => {
+  const { guildId, alertId } = req.params
+
+  try {
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    const currentTw = Array.isArray(cfg?.integrations?.twitch) ? cfg.integrations.twitch : []
+    const updatedTw = currentTw.filter(a => a.id !== alertId)
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { "integrations.twitch": updatedTw, updatedAt: new Date() } }
+    )
+
+    return res.json({ success: true, alertId })
+  } catch (err) {
+    console.error("DELETE integrations/twitch error:", err)
+    return res.status(500).json({ error: "Erreur lors de la suppression de l'alerte Twitch." })
+  }
+})
+
+// ==========================================
+// MODULE 5 : FORMULAIRES & CANDIDATURES (Form Builder)
+// ==========================================
+
+// Créer et envoyer un formulaire sur Discord
+router.post("/guilds/:guildId/forms/send", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  const {
+    id,
+    title = "Formulaire de Candidature",
+    description = "Cliquez sur le bouton ci-dessous pour remplir le formulaire !",
+    buttonLabel = "Postuler",
+    buttonEmoji = "📋",
+    buttonStyle = "PRIMARY",
+    channelId,
+    targetChannelId,
+    roleToGiveOnAccept = null,
+    fields = []
+  } = req.body || {}
+
+  if (!channelId || !targetChannelId) {
+    return res.status(400).json({ error: "Salon d'envoi et Salon de réception Staff requis." })
+  }
+
+  if (!Array.isArray(fields) || fields.length === 0) {
+    return res.status(400).json({ error: "Au moins une question est requise pour le formulaire." })
+  }
+
+  const token = getBotToken()
+  if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant." })
+
+  try {
+    const formId = id || `form_${Date.now()}`
+
+    const STYLE_MAP = {
+      PRIMARY: 1,
+      SECONDARY: 2,
+      SUCCESS: 3,
+      DANGER: 4
+    }
+
+    const embed = {
+      title,
+      description: `${description}\n\n*Cliquez sur le bouton ci-dessous pour soumettre votre candidature !*`,
+      color: 0x6366F1,
+      footer: { text: "Sparcky • Formulaires & Recrutements" },
+      timestamp: new Date().toISOString()
+    }
+
+    const btn = {
+      type: 2, // Button
+      style: STYLE_MAP[buttonStyle] || 1,
+      custom_id: `form_open_${formId}`,
+      label: (buttonLabel || "Postuler").slice(0, 80)
+    }
+    if (buttonEmoji && String(buttonEmoji).trim()) {
+      btn.emoji = { name: String(buttonEmoji).trim() }
+    }
+
+    const components = [
+      {
+        type: 1, // ActionRow
+        components: [btn]
+      }
+    ]
+
+    // Envoi du message sur Discord
+    const discordRes = await axios.post(
+      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      { embeds: [embed], components },
+      { headers: { Authorization: `Bot ${token}` } }
+    )
+
+    const formObj = {
+      id: formId,
+      title,
+      description,
+      buttonLabel,
+      buttonEmoji,
+      buttonStyle,
+      channelId,
+      targetChannelId,
+      roleToGiveOnAccept: roleToGiveOnAccept || null,
+      messageId: discordRes.data?.id || null,
+      fields: fields.slice(0, 5).map((f, idx) => ({
+        id: f.id || `field_${idx + 1}`,
+        label: (f.label || `Question ${idx + 1}`).slice(0, 45),
+        placeholder: (f.placeholder || "").slice(0, 100),
+        style: f.style === "paragraph" ? "paragraph" : "short",
+        required: f.required !== false
+      })),
+      createdAt: new Date()
+    }
+
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    let currentForms = Array.isArray(cfg?.forms) ? [...cfg.forms] : []
+
+    const existingIdx = currentForms.findIndex(f => f.id === formId)
+    if (existingIdx >= 0) {
+      currentForms[existingIdx] = formObj
+    } else {
+      currentForms.push(formObj)
+    }
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { forms: currentForms, updatedAt: new Date() } },
+      { upsert: true }
+    )
+
+    return res.json({ success: true, form: formObj })
+  } catch (err) {
+    console.error("POST forms/send error:", err?.response?.data || err?.message)
+    return res.status(err?.response?.status || 500).json({
+      error: err?.response?.data?.message || "Impossible de publier le formulaire sur Discord."
+    })
+  }
+})
+
+// Supprimer un formulaire
+router.delete("/guilds/:guildId/forms/:formId", authenticate, async (req, res) => {
+  const { guildId, formId } = req.params
+  const token = getBotToken()
+
+  try {
+    const db = await getDb()
+    const cfg = await db.collection("guildconfigurations").findOne({ guildId })
+    const currentForms = Array.isArray(cfg?.forms) ? cfg.forms : []
+    const target = currentForms.find(f => f.id === formId)
+
+    if (!target) {
+      return res.status(404).json({ error: "Formulaire introuvable." })
+    }
+
+    if (token && target.channelId && target.messageId) {
+      try {
+        await axios.delete(`https://discord.com/api/v10/channels/${target.channelId}/messages/${target.messageId}`, {
+          headers: { Authorization: `Bot ${token}` }
+        })
+      } catch {}
+    }
+
+    const updatedForms = currentForms.filter(f => f.id !== formId)
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      { $set: { forms: updatedForms, updatedAt: new Date() } }
+    )
+
+    return res.json({ success: true, formId })
+  } catch (err) {
+    console.error("DELETE forms/:formId error:", err)
+    return res.status(500).json({ error: "Erreur lors de la suppression du formulaire." })
+  }
+})
+
+// Récupérer les soumissions d'un formulaire
+router.get("/guilds/:guildId/forms/:formId/submissions", authenticate, async (req, res) => {
+  const { guildId, formId } = req.params
+  try {
+    const db = await getDb()
+    const submissions = await db
+      .collection("formsubmissions")
+      .find({ guildId, formId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray()
+
+    return res.json({ guildId, formId, submissions })
+  } catch (err) {
+    console.error("GET form submissions error:", err)
+    return res.status(500).json({ error: "Impossible de récupérer les candidatures." })
+  }
+})
+
 export default router

@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.4.1";
+const CURRENT_VERSION = "2.5.0";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,47 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.5.0",
+    date: "19 Novembre 2026",
+    type: "FEATURE",
+    githubUrl: getGitHubReleaseUrl("2.5.0"),
+    title: "Sparcky v2.5.0 : Intégrations Créateurs, Form Builder & Mini-Jeux",
+    summary: "Ajout des intégrations automatisées YouTube & Twitch sans clé API (RSS / GQL), constructeur de formulaires et candidatures avec Modaux Discord et révision staff en 1 clic, validation automatique du jeu du compteur (records et XP) et système de Trivia / Question du Jour quotidienne avec récompenses en émeraudes.",
+    highlights: [
+      {
+        emoji: "🔌",
+        title: "Intégrations YouTube & Twitch",
+        desc: "Alertes automatiques instantanées dès qu'une vidéo sort ou qu'un live démarre, configurables depuis le panel.",
+        inline: true
+      },
+      {
+        emoji: "📋",
+        title: "Form Builder & Modaux Discord",
+        desc: "Créez des formulaires avec modaux Discord personnalisés, boutons Accepter/Refuser staff et attribution automatique de rôles.",
+        inline: true
+      },
+      {
+        emoji: "🔢",
+        title: "Compteur Automatisé",
+        desc: "Validation en temps réel du salon de comptage, gestion des records du serveur et récompenses XP/émeraudes.",
+        inline: true
+      },
+      {
+        emoji: "🧠",
+        title: "Question du Jour (Trivia)",
+        desc: "Questions quotidiennes interactives avec détection automatique de la bonne réponse dans le chat et gains d'émeraudes.",
+        inline: true
+      }
+    ],
+    details: [
+      "Onglet 'Intégrations' sur le tableau de bord web pour YouTube et Twitch.",
+      "Onglet 'Formulaires' avec éditeur visuel, aperçu interactif Discord et modale de consultation des candidatures.",
+      "Bot listener pour les modaux Discord (`form_open_`, `form_submit_`, `form_accept_`, `form_refuse_`).",
+      "Event messageCreate `countingGame` pour les salons de compteurs de n'importe quel serveur.",
+      "Module `qotdTrivia` pour animer la communauté avec des questions de culture gaming / Minecraft."
+    ]
+  },
   {
     version: "2.4.1",
     date: "18 Novembre 2026",

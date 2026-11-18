@@ -10,6 +10,7 @@ export const {
   User,
   Warn,
   DailyStat,
+  FormSubmission,
   defaultGuildConfig,
   CURRENT_VERSION,
   CHANGELOGS,

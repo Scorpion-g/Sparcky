@@ -60,7 +60,33 @@ function defaultGuildConfig() {
     reactionRoles: [],
 
     // Auto-Répondeur & Commandes Personnalisées
-    customCommands: []
+    customCommands: [],
+
+    // Intégrations (Alertes YouTube & Twitch)
+    integrations: {
+      youtube: [],
+      twitch: []
+    },
+
+    // Formulaires Personnalisés & Candidatures
+    forms: [],
+
+    // Mini-Jeu Compteur (Counting Game)
+    counting: {
+      channelId: null,
+      currentNumber: 1,
+      lastUserId: null,
+      record: 0,
+      enabled: true
+    },
+
+    // Question du Jour (QOTD Trivia)
+    trivia: {
+      channelId: null,
+      rewardAmount: 25,
+      enabled: true,
+      lastQuestionDate: null
+    }
   };
 }
 

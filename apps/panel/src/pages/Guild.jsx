@@ -192,6 +192,45 @@ export default function GuildPage() {
   const [newSanctionAction, setNewSanctionAction] = useState("timeout")
   const [newSanctionDuration, setNewSanctionDuration] = useState(10)
 
+  // Données Intégrations (YouTube & Twitch)
+  const [ytForm, setYtForm] = useState({
+    channelInput: "",
+    discordChannelId: "",
+    roleId: "",
+    customMessage: "🎬 **Nouvelle vidéo de {author} !**\n\n📌 **{title}**\n👉 {url}"
+  })
+  const [twitchForm, setTwitchForm] = useState({
+    streamerLogin: "",
+    discordChannelId: "",
+    roleId: "",
+    customMessage: "🟣 **{streamer} est en LIVE sur Twitch !**\n\n🎮 **{game}** : {title}\n👉 {url}"
+  })
+  const [addingYt, setAddingYt] = useState(false)
+  const [addingTwitch, setAddingTwitch] = useState(false)
+  const [deletingIntegrationId, setDeletingIntegrationId] = useState(null)
+  const [integrationMsg, setIntegrationMsg] = useState(null)
+
+  // Données Formulaires & Candidatures (Modals)
+  const [formBuilder, setFormBuilder] = useState({
+    title: "Candidature Recrutement Staff",
+    description: "Remplissez ce formulaire pour postuler. Notre équipe traitera votre demande sous 48h.",
+    buttonLabel: "Postuler",
+    buttonEmoji: "📝",
+    buttonStyle: "PRIMARY",
+    channelId: "",
+    targetChannelId: "",
+    roleToGiveOnAccept: "",
+    fields: [
+      { id: "q1", label: "Présentation & Âge", placeholder: "Présentez-vous rapidement (prénom, âge, activités)...", style: "paragraph", required: true },
+      { id: "q2", label: "Vos motivations & Disponibilités", placeholder: "Pourquoi postuler et quelles sont vos disponibilités ?", style: "paragraph", required: true },
+      { id: "q3", label: "Expérience passée", placeholder: "Avez-vous déjà modéré ou géré un serveur / projet ?", style: "paragraph", required: false }
+    ]
+  })
+  const [sendingForm, setSendingForm] = useState(false)
+  const [deletingFormId, setDeletingFormId] = useState(null)
+  const [formMsg, setFormMsg] = useState(null)
+  const [submissionsModal, setSubmissionsModal] = useState(null)
+
   function logout() {
     clearJwt()
     navigate("/login", { replace: true })
@@ -1072,6 +1111,311 @@ export default function GuildPage() {
     updateField("customCommands", updatedList)
   }
 
+  // ==========================================
+  // Module Intégrations (YouTube & Twitch)
+  // ==========================================
+  async function handleAddYouTube(e) {
+    if (e) e.preventDefault()
+    if (!ytForm.channelInput.trim() || !ytForm.discordChannelId) {
+      alert("Veuillez renseigner le lien / @handle de la chaîne et le salon Discord.")
+      return
+    }
+    setAddingYt(true)
+    setIntegrationMsg(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/integrations/youtube`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(ytForm)
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error || "Erreur lors de l'ajout de l'alerte YouTube")
+      setIntegrationMsg({ type: "success", text: `Alerte YouTube configurée avec succès pour ${payload?.alert?.channelTitle || "la chaîne"} !` })
+      if (payload?.alert) {
+        setConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...(prev?.integrations || {}),
+            youtube: [...(prev?.integrations?.youtube || []).filter(a => a.channelId !== payload.alert.channelId), payload.alert]
+          }
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            if (!parsed.integrations) parsed.integrations = { youtube: [], twitch: [] }
+            parsed.integrations.youtube = [...(parsed.integrations.youtube || []).filter(a => a.channelId !== payload.alert.channelId), payload.alert]
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+        setYtForm(prev => ({ ...prev, channelInput: "" }))
+      }
+    } catch (err) {
+      setIntegrationMsg({ type: "error", text: err.message })
+    } finally {
+      setAddingYt(false)
+    }
+  }
+
+  async function handleDeleteYouTube(alertId) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette alerte YouTube ?")) return
+    setDeletingIntegrationId(alertId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/integrations/youtube/${alertId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...(prev?.integrations || {}),
+            youtube: (prev?.integrations?.youtube || []).filter(a => a.id !== alertId)
+          }
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            if (parsed.integrations?.youtube) {
+              parsed.integrations.youtube = parsed.integrations.youtube.filter(a => a.id !== alertId)
+            }
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (err) {
+      alert("Erreur suppression alerte YouTube: " + err.message)
+    } finally {
+      setDeletingIntegrationId(null)
+    }
+  }
+
+  async function handleAddTwitch(e) {
+    if (e) e.preventDefault()
+    if (!twitchForm.streamerLogin.trim() || !twitchForm.discordChannelId) {
+      alert("Veuillez renseigner le nom de la chaîne Twitch et le salon Discord.")
+      return
+    }
+    setAddingTwitch(true)
+    setIntegrationMsg(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/integrations/twitch`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(twitchForm)
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error || "Erreur lors de l'ajout de l'alerte Twitch")
+      setIntegrationMsg({ type: "success", text: `Alerte Twitch configurée avec succès pour ${payload?.alert?.streamerName || "le streamer"} !` })
+      if (payload?.alert) {
+        setConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...(prev?.integrations || {}),
+            twitch: [...(prev?.integrations?.twitch || []).filter(a => a.streamerLogin !== payload.alert.streamerLogin), payload.alert]
+          }
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            if (!parsed.integrations) parsed.integrations = { youtube: [], twitch: [] }
+            parsed.integrations.twitch = [...(parsed.integrations.twitch || []).filter(a => a.streamerLogin !== payload.alert.streamerLogin), payload.alert]
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+        setTwitchForm(prev => ({ ...prev, streamerLogin: "" }))
+      }
+    } catch (err) {
+      setIntegrationMsg({ type: "error", text: err.message })
+    } finally {
+      setAddingTwitch(false)
+    }
+  }
+
+  async function handleDeleteTwitch(alertId) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette alerte Twitch ?")) return
+    setDeletingIntegrationId(alertId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/integrations/twitch/${alertId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setConfig(prev => ({
+          ...prev,
+          integrations: {
+            ...(prev?.integrations || {}),
+            twitch: (prev?.integrations?.twitch || []).filter(a => a.id !== alertId)
+          }
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            if (parsed.integrations?.twitch) {
+              parsed.integrations.twitch = parsed.integrations.twitch.filter(a => a.id !== alertId)
+            }
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (err) {
+      alert("Erreur suppression alerte Twitch: " + err.message)
+    } finally {
+      setDeletingIntegrationId(null)
+    }
+  }
+
+  // ==========================================
+  // Module Formulaires & Candidatures (Modals)
+  // ==========================================
+  function handleAddFormField() {
+    if ((formBuilder.fields || []).length >= 5) {
+      alert("Discord limite les fenêtres modales à 5 questions maximum.")
+      return
+    }
+    const idx = (formBuilder.fields || []).length + 1
+    const newField = {
+      id: `field_${Date.now()}`,
+      label: `Question ${idx}`,
+      placeholder: "Votre réponse...",
+      style: "paragraph",
+      required: true
+    }
+    setFormBuilder(prev => ({
+      ...prev,
+      fields: [...(prev.fields || []), newField]
+    }))
+  }
+
+  function handleRemoveFormField(idxToRemove) {
+    setFormBuilder(prev => ({
+      ...prev,
+      fields: (prev.fields || []).filter((_, i) => i !== idxToRemove)
+    }))
+  }
+
+  function handleUpdateFormField(index, key, val) {
+    setFormBuilder(prev => {
+      const copy = [...(prev.fields || [])]
+      copy[index] = { ...copy[index], [key]: val }
+      return { ...prev, fields: copy }
+    })
+  }
+
+  async function handleSendForm(e) {
+    if (e) e.preventDefault()
+    if (!formBuilder.title.trim() || !formBuilder.channelId || !formBuilder.targetChannelId) {
+      alert("Titre, Salon de publication et Salon de réception Staff requis.")
+      return
+    }
+    if (!Array.isArray(formBuilder.fields) || formBuilder.fields.length === 0) {
+      alert("Veuillez configurer au moins 1 question.")
+      return
+    }
+
+    setSendingForm(true)
+    setFormMsg(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/forms/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formBuilder)
+      })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error || "Erreur lors de la publication du formulaire.")
+      setFormMsg({ type: "success", text: "Formulaire publié avec succès sur Discord !" })
+      if (payload?.form) {
+        setConfig(prev => ({
+          ...prev,
+          forms: [...(prev?.forms || []).filter(f => f.id !== payload.form.id), payload.form]
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            parsed.forms = [...(parsed.forms || []).filter(f => f.id !== payload.form.id), payload.form]
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (err) {
+      setFormMsg({ type: "error", text: err.message })
+    } finally {
+      setSendingForm(false)
+    }
+  }
+
+  async function handleDeleteForm(formId) {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce formulaire ? Le message d'accroche sur Discord sera également supprimé.")) return
+    setDeletingFormId(formId)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/forms/${formId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        setConfig(prev => ({
+          ...prev,
+          forms: (prev?.forms || []).filter(f => f.id !== formId)
+        }))
+        setSavedConfigStr(prev => {
+          try {
+            const parsed = JSON.parse(prev || "{}")
+            if (Array.isArray(parsed.forms)) {
+              parsed.forms = parsed.forms.filter(f => f.id !== formId)
+            }
+            return JSON.stringify(parsed)
+          } catch {
+            return prev
+          }
+        })
+      }
+    } catch (err) {
+      alert("Erreur suppression formulaire: " + err.message)
+    } finally {
+      setDeletingFormId(null)
+    }
+  }
+
+  async function handleOpenSubmissionsModal(form) {
+    setSubmissionsModal({
+      formId: form.id,
+      formTitle: form.title,
+      submissions: [],
+      loading: true
+    })
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/forms/${form.id}/submissions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (res.ok) {
+        const payload = await res.json()
+        setSubmissionsModal(prev => prev ? { ...prev, submissions: payload?.submissions || [], loading: false } : null)
+      } else {
+        setSubmissionsModal(prev => prev ? { ...prev, loading: false } : null)
+      }
+    } catch {
+      setSubmissionsModal(prev => prev ? { ...prev, loading: false } : null)
+    }
+  }
+
   // Fonctions de gestion des règles d'Auto-Sanction
   function handleAddSanctionRule() {
     const currentRules = Array.isArray(config?.autoSanctionRules) ? [...config.autoSanctionRules] : [
@@ -1280,6 +1624,8 @@ export default function GuildPage() {
                       <option value="security">🛡️ {t("tabs.security")}</option>
                       <option value="reactionRoles">🎭 {t("tabs.reactionRoles")} ({config?.reactionRoles?.length || 0})</option>
                       <option value="customCommands">🤖 {t("tabs.customCommands")} ({config?.customCommands?.length || 0})</option>
+                      <option value="integrations">🔌 {t("tabs.integrations")} ({(config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)})</option>
+                      <option value="forms">📋 {t("tabs.forms")} ({config?.forms?.length || 0})</option>
                       <option value="economy">🪙 {config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")}</option>
                       <option value="leveling">🏆 {config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")}</option>
                       <option value="giveaways">🎉 {t("tabs.giveaways")}</option>
@@ -1303,6 +1649,8 @@ export default function GuildPage() {
                   <TabButton active={activeTab === "security"} onClick={() => setActiveTab("security")} icon="🛡️" label={t("tabs.security")} />
                   <TabButton active={activeTab === "reactionRoles"} onClick={() => setActiveTab("reactionRoles")} icon="🎭" label={config?.reactionRoles?.length ? `${t("tabs.reactionRoles")} (${config.reactionRoles.length})` : t("tabs.reactionRoles")} />
                   <TabButton active={activeTab === "customCommands"} onClick={() => setActiveTab("customCommands")} icon="🤖" label={config?.customCommands?.length ? `${t("tabs.customCommands")} (${config.customCommands.length})` : t("tabs.customCommands")} />
+                  <TabButton active={activeTab === "integrations"} onClick={() => setActiveTab("integrations")} icon="🔌" label={((config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)) ? `${t("tabs.integrations")} (${(config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)})` : t("tabs.integrations")} />
+                  <TabButton active={activeTab === "forms"} onClick={() => setActiveTab("forms")} icon="📋" label={config?.forms?.length ? `${t("tabs.forms")} (${config.forms.length})` : t("tabs.forms")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
                   <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")} />
                   <TabButton active={activeTab === "giveaways"} onClick={() => setActiveTab("giveaways")} icon="🎉" label={t("tabs.giveaways")} />
@@ -2652,6 +3000,584 @@ export default function GuildPage() {
                       ) : (
                         <div className="col-span-2 rounded-3xl border border-white/5 bg-slate-900/40 py-12 text-center text-sm text-slate-400">
                           {t("cc.noTriggers")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Section Intégrations (YouTube & Twitch) */}
+                {activeTab === "integrations" && (
+                  <div className="space-y-8">
+                    {/* Message Notification */}
+                    {integrationMsg && (
+                      <div
+                        className={`rounded-2xl border p-4 text-sm font-semibold flex items-center justify-between ${
+                          integrationMsg.type === "success"
+                            ? "border-emerald-500/30 bg-emerald-950/80 text-emerald-200"
+                            : "border-rose-500/30 bg-rose-950/80 text-rose-200"
+                        }`}
+                      >
+                        <span>{integrationMsg.text}</span>
+                        <button type="button" onClick={() => setIntegrationMsg(null)} className="text-xs opacity-70 hover:opacity-100">✕</button>
+                      </div>
+                    )}
+
+                    {/* Bloc Alertes YouTube */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-rose-500/10 text-xl text-rose-500">
+                          ▶️
+                        </span>
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Alertes Vidéos YouTube</h2>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            Publiez automatiquement les nouvelles vidéos d'une chaîne dans le salon Discord de votre choix.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Formulaire YouTube */}
+                      <form onSubmit={handleAddYouTube} className="mt-6 grid gap-4 rounded-2xl border border-white/5 bg-slate-950/40 p-4 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Chaîne YouTube
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="ex: @Craftor13 ou https://youtube.com/@Craftor13"
+                            value={ytForm.channelInput}
+                            onChange={e => setYtForm(prev => ({ ...prev, channelInput: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Salon d'Annonce Discord
+                          </label>
+                          <select
+                            value={ytForm.discordChannelId}
+                            onChange={e => setYtForm(prev => ({ ...prev, discordChannelId: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                          >
+                            <option value="">Sélectionner un salon...</option>
+                            {textChannels.map(ch => (
+                              <option key={ch.id} value={ch.id}># {ch.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Rôle à Mentionner (Optionnel)
+                          </label>
+                          <select
+                            value={ytForm.roleId}
+                            onChange={e => setYtForm(prev => ({ ...prev, roleId: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                          >
+                            <option value="">Aucun rôle (pas de ping)</option>
+                            {roles.map(r => (
+                              <option key={r.id} value={r.id}>@{r.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Message d'Annonce Custom
+                          </label>
+                          <input
+                            type="text"
+                            value={ytForm.customMessage}
+                            onChange={e => setYtForm(prev => ({ ...prev, customMessage: e.target.value }))}
+                            placeholder="🎬 Nouvelle vidéo de {author} ! 👉 {url}"
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-rose-500"
+                          />
+                          <p className="mt-1 text-[10px] text-slate-500">Variables : &#123;author&#125;, &#123;title&#125;, &#123;url&#125;</p>
+                        </div>
+
+                        <div className="sm:col-span-2 flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={addingYt}
+                            className="flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-rose-600/30 transition hover:bg-rose-500 disabled:opacity-50"
+                          >
+                            {addingYt ? "Vérification de la chaîne..." : "+ Ajouter l'alerte YouTube"}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* Liste des alertes YouTube */}
+                      <div className="mt-6 space-y-3">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Chaînes YouTube Surveillées ({(config?.integrations?.youtube || []).length})
+                        </h3>
+                        {(config?.integrations?.youtube || []).length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {config.integrations.youtube.map(alert => {
+                              const chName = textChannels.find(c => c.id === alert.discordChannelId)?.name || alert.discordChannelId
+                              const rName = roles.find(r => r.id === alert.roleId)?.name
+                              return (
+                                <div key={alert.id || alert.channelId} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-4">
+                                  <div className="min-w-0 pr-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-white truncate text-sm">{alert.channelTitle || alert.channelHandle}</span>
+                                      <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-400">YouTube</span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                                      <span>📢 #{chName}</span>
+                                      {rName && <span>• 🔔 @{rName}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteYouTube(alert.id)}
+                                    disabled={deletingIntegrationId === alert.id}
+                                    className="shrink-0 rounded-xl bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                                  >
+                                    {deletingIntegrationId === alert.id ? "..." : "Supprimer"}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-white/5 bg-slate-950/30 py-8 text-center text-xs text-slate-400">
+                            Aucune alerte YouTube configurée. Ajoutez votre chaîne ci-dessus pour activer les alertes automatiques.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bloc Alertes Twitch */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-500/10 text-xl text-purple-400">
+                          🟣
+                        </span>
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Alertes Live Twitch</h2>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            Déclenchez un ping instantané sur votre serveur dès que votre streamer préféré lance son stream.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Formulaire Twitch */}
+                      <form onSubmit={handleAddTwitch} className="mt-6 grid gap-4 rounded-2xl border border-white/5 bg-slate-950/40 p-4 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Pseudo / Chaîne Twitch
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="ex: grimdalmc ou zerator"
+                            value={twitchForm.streamerLogin}
+                            onChange={e => setTwitchForm(prev => ({ ...prev, streamerLogin: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Salon d'Annonce Discord
+                          </label>
+                          <select
+                            value={twitchForm.discordChannelId}
+                            onChange={e => setTwitchForm(prev => ({ ...prev, discordChannelId: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500"
+                          >
+                            <option value="">Sélectionner un salon...</option>
+                            {textChannels.map(ch => (
+                              <option key={ch.id} value={ch.id}># {ch.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Rôle à Mentionner (Optionnel)
+                          </label>
+                          <select
+                            value={twitchForm.roleId}
+                            onChange={e => setTwitchForm(prev => ({ ...prev, roleId: e.target.value }))}
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500"
+                          >
+                            <option value="">Aucun rôle (pas de ping)</option>
+                            {roles.map(r => (
+                              <option key={r.id} value={r.id}>@{r.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                            Message d'Annonce Custom
+                          </label>
+                          <input
+                            type="text"
+                            value={twitchForm.customMessage}
+                            onChange={e => setTwitchForm(prev => ({ ...prev, customMessage: e.target.value }))}
+                            placeholder="🟣 {streamer} est en LIVE sur Twitch ! 👉 {url}"
+                            className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500"
+                          />
+                          <p className="mt-1 text-[10px] text-slate-500">Variables : &#123;streamer&#125;, &#123;game&#125;, &#123;title&#125;, &#123;url&#125;</p>
+                        </div>
+
+                        <div className="sm:col-span-2 flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={addingTwitch}
+                            className="flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-600/30 transition hover:bg-purple-500 disabled:opacity-50"
+                          >
+                            {addingTwitch ? "Vérification sur Twitch..." : "+ Ajouter l'alerte Twitch"}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* Liste des alertes Twitch */}
+                      <div className="mt-6 space-y-3">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Streamers Surveillés ({(config?.integrations?.twitch || []).length})
+                        </h3>
+                        {(config?.integrations?.twitch || []).length > 0 ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {config.integrations.twitch.map(alert => {
+                              const chName = textChannels.find(c => c.id === alert.discordChannelId)?.name || alert.discordChannelId
+                              const rName = roles.find(r => r.id === alert.roleId)?.name
+                              return (
+                                <div key={alert.id || alert.streamerLogin} className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-950/60 p-4">
+                                  <div className="min-w-0 pr-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-white truncate text-sm">{alert.streamerName || alert.streamerLogin}</span>
+                                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${alert.isLive ? "bg-emerald-500/20 text-emerald-400 animate-pulse" : "bg-purple-500/10 text-purple-400"}`}>
+                                        {alert.isLive ? "🔴 EN DIRECT" : "Twitch"}
+                                      </span>
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                                      <span>📢 #{chName}</span>
+                                      {rName && <span>• 🔔 @{rName}</span>}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteTwitch(alert.id)}
+                                    disabled={deletingIntegrationId === alert.id}
+                                    className="shrink-0 rounded-xl bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                                  >
+                                    {deletingIntegrationId === alert.id ? "..." : "Supprimer"}
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-white/5 bg-slate-950/30 py-8 text-center text-xs text-slate-400">
+                            Aucune alerte Twitch configurée. Ajoutez votre streamer ci-dessus.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Section Formulaires & Candidatures */}
+                {activeTab === "forms" && (
+                  <div className="space-y-8">
+                    {/* Message Notification */}
+                    {formMsg && (
+                      <div
+                        className={`rounded-2xl border p-4 text-sm font-semibold flex items-center justify-between ${
+                          formMsg.type === "success"
+                            ? "border-emerald-500/30 bg-emerald-950/80 text-emerald-200"
+                            : "border-rose-500/30 bg-rose-950/80 text-rose-200"
+                        }`}
+                      >
+                        <span>{formMsg.text}</span>
+                        <button type="button" onClick={() => setFormMsg(null)} className="text-xs opacity-70 hover:opacity-100">✕</button>
+                      </div>
+                    )}
+
+                    {/* Créateur de Formulaire */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/10 text-xl text-indigo-400">
+                          📋
+                        </span>
+                        <div>
+                          <h2 className="text-lg font-bold text-white">Créateur de Formulaire & Recrutements</h2>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            Générez un bouton d'inscription interactif. Quand un membre clique dessus, une fenêtre modale Discord s'affiche.
+                          </p>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleSendForm} className="mt-6 space-y-6">
+                        {/* Paramètres principaux */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Titre de l'Annonce / Formulaire
+                            </label>
+                            <input
+                              type="text"
+                              value={formBuilder.title}
+                              onChange={e => setFormBuilder(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="ex: Candidature Recrutement Modérateur"
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Description & Consignes
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={formBuilder.description}
+                              onChange={e => setFormBuilder(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Expliquez ce qui est attendu des candidats..."
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Salon de Publication (Public)
+                            </label>
+                            <select
+                              value={formBuilder.channelId}
+                              onChange={e => setFormBuilder(prev => ({ ...prev, channelId: e.target.value }))}
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                            >
+                              <option value="">Sélectionner le salon d'affichage...</option>
+                              {textChannels.map(ch => (
+                                <option key={ch.id} value={ch.id}># {ch.name}</option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-[10px] text-slate-500">Là où le bot enverra l'embed avec le bouton "Postuler".</p>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Salon de Réception Staff (Privé)
+                            </label>
+                            <select
+                              value={formBuilder.targetChannelId}
+                              onChange={e => setFormBuilder(prev => ({ ...prev, targetChannelId: e.target.value }))}
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                            >
+                              <option value="">Sélectionner le salon privé du staff...</option>
+                              {textChannels.map(ch => (
+                                <option key={ch.id} value={ch.id}># {ch.name}</option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-[10px] text-slate-500">Où les candidatures arrivent avec les boutons Accepter/Refuser.</p>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Rôle à Attribuer en cas d'Acceptation (Optionnel)
+                            </label>
+                            <select
+                              value={formBuilder.roleToGiveOnAccept}
+                              onChange={e => setFormBuilder(prev => ({ ...prev, roleToGiveOnAccept: e.target.value }))}
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500"
+                            >
+                              <option value="">Aucun rôle attribué</option>
+                              {roles.map(r => (
+                                <option key={r.id} value={r.id}>@{r.name}</option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-[10px] text-slate-500">Attribué automatiquement au membre dès qu'un modérateur clique sur "Accepter".</p>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Texte Bouton</label>
+                              <input
+                                type="text"
+                                value={formBuilder.buttonLabel}
+                                onChange={e => setFormBuilder(prev => ({ ...prev, buttonLabel: e.target.value }))}
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Emoji</label>
+                              <input
+                                type="text"
+                                value={formBuilder.buttonEmoji}
+                                onChange={e => setFormBuilder(prev => ({ ...prev, buttonEmoji: e.target.value }))}
+                                placeholder="📝"
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300">Style</label>
+                              <select
+                                value={formBuilder.buttonStyle}
+                                onChange={e => setFormBuilder(prev => ({ ...prev, buttonStyle: e.target.value }))}
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-2 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                              >
+                                <option value="PRIMARY">Bleu</option>
+                                <option value="SUCCESS">Vert</option>
+                                <option value="SECONDARY">Gris</option>
+                                <option value="DANGER">Rouge</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Configuration des Questions (Modal Discord) */}
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Questions du Formulaire ({(formBuilder.fields || []).length} / 5)
+                              </h3>
+                              <p className="text-[11px] text-slate-500">
+                                Discord impose une limite stricte de 5 champs par pop-up Modal.
+                              </p>
+                            </div>
+                            {(formBuilder.fields || []).length < 5 && (
+                              <button
+                                type="button"
+                                onClick={handleAddFormField}
+                                className="rounded-xl bg-indigo-600/20 px-3 py-1.5 text-xs font-bold text-indigo-300 hover:bg-indigo-600/30"
+                              >
+                                + Ajouter une question
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {(formBuilder.fields || []).map((f, idx) => (
+                              <div key={f.id || idx} className="rounded-xl border border-white/5 bg-slate-900/60 p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-indigo-400">Question #{idx + 1}</span>
+                                  {(formBuilder.fields || []).length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFormField(idx)}
+                                      className="text-xs text-rose-400 hover:text-rose-300"
+                                    >
+                                      Supprimer ✕
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                  <div className="sm:col-span-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Intitulé de la question (ex: Présentez vos motivations)..."
+                                      value={f.label}
+                                      onChange={e => handleUpdateFormField(idx, "label", e.target.value)}
+                                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <select
+                                      value={f.style}
+                                      onChange={e => handleUpdateFormField(idx, "style", e.target.value)}
+                                      className="w-full rounded-lg border border-white/10 bg-slate-950 px-2 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                    >
+                                      <option value="paragraph">Paragraphe (Long)</option>
+                                      <option value="short">Court (1 ligne)</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <div>
+                                  <input
+                                    type="text"
+                                    placeholder="Exemple ou placeholder indicatif..."
+                                    value={f.placeholder}
+                                    onChange={e => handleUpdateFormField(idx, "placeholder", e.target.value)}
+                                    className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-1.5 text-[11px] text-slate-300 outline-none focus:border-indigo-500"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Aperçu Discord */}
+                        <div className="rounded-2xl border border-indigo-500/20 bg-indigo-950/20 p-4">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">Aperçu du Panneau Discord</span>
+                          <div className="mt-2 rounded-xl border-l-4 border-l-indigo-500 bg-slate-950/80 p-4">
+                            <h4 className="text-sm font-bold text-white">{formBuilder.title || "Titre du formulaire"}</h4>
+                            <p className="mt-1 text-xs text-slate-300 whitespace-pre-wrap">{formBuilder.description || "Description..."}</p>
+                            <p className="mt-2 text-[11px] text-slate-500 italic">*Cliquez sur le bouton ci-dessous pour soumettre votre candidature !*</p>
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white shadow">
+                              {formBuilder.buttonEmoji} {formBuilder.buttonLabel || "Postuler"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bouton de soumission */}
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={sendingForm}
+                            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500 disabled:opacity-50"
+                          >
+                            {sendingForm ? "Publication sur Discord..." : "🚀 Publier le Formulaire sur Discord"}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
+                    {/* Liste des formulaires actifs */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                        Formulaires en Ligne ({(config?.forms || []).length})
+                      </h3>
+                      {(config?.forms || []).length > 0 ? (
+                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                          {config.forms.map(form => {
+                            const pubCh = textChannels.find(c => c.id === form.channelId)?.name || form.channelId
+                            const staffCh = textChannels.find(c => c.id === form.targetChannelId)?.name || form.targetChannelId
+                            const autoRole = roles.find(r => r.id === form.roleToGiveOnAccept)?.name
+                            return (
+                              <div key={form.id} className="rounded-2xl border border-white/5 bg-slate-950/60 p-5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-white text-sm truncate">{form.title}</h4>
+                                  <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">
+                                    {form.fields?.length || 0} questions
+                                  </span>
+                                </div>
+                                <div className="space-y-1 text-xs text-slate-400">
+                                  <div>📢 Affiché dans : <span className="text-slate-200">#{pubCh}</span></div>
+                                  <div>🛡️ Réception Staff : <span className="text-slate-200">#{staffCh}</span></div>
+                                  {autoRole && <div>🎁 Rôle attribué : <span className="text-emerald-400">@{autoRole}</span></div>}
+                                </div>
+                                <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSubmissionsModal(form)}
+                                    className="flex items-center gap-1.5 rounded-xl bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-500/20"
+                                  >
+                                    📋 Voir les candidatures
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteForm(form.id)}
+                                    disabled={deletingFormId === form.id}
+                                    className="rounded-xl bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
+                                  >
+                                    {deletingFormId === form.id ? "..." : "Supprimer"}
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-2xl border border-white/5 bg-slate-950/30 py-8 text-center text-xs text-slate-400">
+                          Aucun formulaire actif. Remplissez le créateur ci-dessus pour publier votre première annonce de recrutement !
                         </div>
                       )}
                     </div>
@@ -5005,6 +5931,101 @@ export default function GuildPage() {
                 className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500"
               >
                 {editingCc ? "Mettre à jour" : "Créer le déclencheur"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de consultation des candidatures */}
+      {submissionsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-3xl border border-white/10 bg-slate-900 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-white/10 p-6">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>📋</span>
+                  <span>Candidatures : {submissionsModal.formTitle}</span>
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  Historique des réponses et décisions du staff pour ce formulaire.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmissionsModal(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-white/5"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {submissionsModal.loading ? (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  Chargement des candidatures...
+                </div>
+              ) : submissionsModal.submissions.length === 0 ? (
+                <div className="py-12 text-center text-xs text-slate-400">
+                  Aucune candidature enregistrée pour le moment.
+                </div>
+              ) : (
+                submissionsModal.submissions.map(sub => {
+                  const statusColors = {
+                    PENDING: "bg-amber-500/10 text-amber-300 border-amber-500/20",
+                    ACCEPTED: "bg-emerald-500/10 text-emerald-300 border-emerald-500/20",
+                    REJECTED: "bg-rose-500/10 text-rose-300 border-rose-500/20"
+                  }
+                  const statusLabels = {
+                    PENDING: "⏳ En attente",
+                    ACCEPTED: "✅ Acceptée",
+                    REJECTED: "❌ Refusée"
+                  }
+                  return (
+                    <div key={sub._id || sub.submissionId} className="rounded-2xl border border-white/5 bg-slate-950/60 p-5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-indigo-600/30 flex items-center justify-center font-bold text-xs text-indigo-300">
+                            {sub.userTag?.[0]?.toUpperCase() || "U"}
+                          </div>
+                          <div>
+                            <div className="font-bold text-white text-xs">{sub.userTag || sub.userId}</div>
+                            <div className="text-[10px] text-slate-500">
+                              {sub.createdAt ? new Date(sub.createdAt).toLocaleString("fr-FR") : ""}
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusColors[sub.status] || statusColors.PENDING}`}>
+                          {statusLabels[sub.status] || sub.status}
+                          {sub.reviewedByTag && ` par ${sub.reviewedByTag}`}
+                        </span>
+                      </div>
+
+                      {/* Réponses du candidat */}
+                      <div className="space-y-2.5">
+                        {Array.isArray(sub.answers) && sub.answers.map((ans, i) => (
+                          <div key={i} className="rounded-xl bg-slate-900/80 p-3 text-xs">
+                            <div className="font-semibold text-slate-300">{ans.question}</div>
+                            <div className="mt-1 whitespace-pre-wrap text-slate-100">{ans.answer || "Non renseigné"}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-white/10 p-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSubmissionsModal(null)}
+                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/10"
+              >
+                Fermer
               </button>
             </div>
           </div>

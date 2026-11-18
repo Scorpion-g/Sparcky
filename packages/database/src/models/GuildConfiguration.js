@@ -94,6 +94,81 @@ const guildConfigSchema = new mongoose.Schema({
     default: []
   },
 
+  // --- Intégrations Réseaux Sociaux (YouTube & Twitch) ---
+  integrations: {
+    youtube: {
+      type: [
+        {
+          id: { type: String, required: true },
+          channelId: { type: String, required: true },
+          channelTitle: { type: String, default: "" },
+          channelHandle: { type: String, default: "" },
+          discordChannelId: { type: String, required: true },
+          roleId: { type: String, default: null },
+          customMessage: {
+            type: String,
+            default: "🎬 **Nouvelle vidéo de {author} !**\n\n📌 **{title}**\n👉 {url}"
+          },
+          lastVideoId: { type: String, default: null },
+          enabled: { type: Boolean, default: true },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
+    twitch: {
+      type: [
+        {
+          id: { type: String, required: true },
+          streamerLogin: { type: String, required: true },
+          streamerName: { type: String, default: "" },
+          discordChannelId: { type: String, required: true },
+          roleId: { type: String, default: null },
+          customMessage: {
+            type: String,
+            default: "🔴 **{streamer} est en direct sur Twitch !**\n\n🎮 Jeu : **{game}**\n📌 **{title}**\n👉 {url}"
+          },
+          isLive: { type: Boolean, default: false },
+          lastStreamId: { type: String, default: null },
+          enabled: { type: Boolean, default: true },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    }
+  },
+
+  // --- Formulaires Personnalisés & Candidatures (Form Builder) ---
+  forms: {
+    type: [
+      {
+        id: { type: String, required: true },
+        title: { type: String, required: true },
+        description: { type: String, default: "Cliquez sur le bouton ci-dessous pour postuler !" },
+        buttonLabel: { type: String, default: "Postuler" },
+        buttonEmoji: { type: String, default: "📋" },
+        buttonStyle: { type: String, default: "PRIMARY" },
+        channelId: { type: String, required: true },
+        targetChannelId: { type: String, required: true },
+        roleToGiveOnAccept: { type: String, default: null },
+        messageId: { type: String, default: null },
+        fields: [
+          {
+            id: { type: String, required: true },
+            label: { type: String, required: true },
+            placeholder: { type: String, default: "" },
+            style: { type: String, enum: ["short", "paragraph"], default: "short" },
+            required: { type: Boolean, default: true },
+            minLength: { type: Number, default: 1 },
+            maxLength: { type: Number, default: 1000 }
+          }
+        ],
+        createdAt: { type: Date, default: Date.now }
+      }
+    ],
+    default: []
+  },
+
   // --- Auto-Répondeur & Commandes Personnalisées ---
   customCommands: {
     type: [
@@ -110,6 +185,23 @@ const guildConfigSchema = new mongoose.Schema({
       }
     ],
     default: []
+  },
+
+  // --- Mini-Jeu Compteur (Counting Game) ---
+  counting: {
+    channelId: { type: String, default: null },
+    currentNumber: { type: Number, default: 1 },
+    lastUserId: { type: String, default: null },
+    record: { type: Number, default: 0 },
+    enabled: { type: Boolean, default: true }
+  },
+
+  // --- Question du Jour (QOTD Trivia) ---
+  trivia: {
+    channelId: { type: String, default: null },
+    rewardAmount: { type: Number, default: 25 },
+    enabled: { type: Boolean, default: true },
+    lastQuestionDate: { type: String, default: null }
   }
 });
 

@@ -7,6 +7,7 @@ const Ticket = require("./models/Ticket");
 const User = require("./models/User");
 const Warn = require("./models/Warn");
 const DailyStat = require("./models/DailyStat");
+const FormSubmission = require("./models/FormSubmission");
 const { defaultGuildConfig } = require("./defaults");
 const {
   CURRENT_VERSION,
@@ -28,6 +29,7 @@ module.exports = {
   User,
   Warn,
   DailyStat,
+  FormSubmission,
   defaultGuildConfig,
   CURRENT_VERSION,
   CHANGELOGS,
