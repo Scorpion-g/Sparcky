@@ -44,9 +44,18 @@ module.exports = {
 
       const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
 
+      // --- Détection du statut VIP / Rôle Prestige pour booster l'XP et l'économie ---
+      const isVip = Boolean(
+        message.member?.roles?.cache?.some(r => {
+          const n = r.name.toLowerCase();
+          return n.includes("vip") || n.includes("personnage important") || n.includes("légende");
+        })
+      );
+
       // --- 1. Récompense économique passive par message (Chat-to-Earn) ---
       const economyEnabled = guildConfig?.economyEnabled !== false;
-      const chatReward = guildConfig?.chatReward || 0;
+      const baseReward = guildConfig?.chatReward || 0;
+      const chatReward = isVip ? baseReward * 2 : baseReward;
       if (economyEnabled && chatReward > 0) {
         await User.updateOne(
           { guildId, userId },
@@ -61,7 +70,8 @@ module.exports = {
         return;
       }
 
-      const xpToGive = getRandomXp(15, 30);
+      // Bonus VIP : 25 à 45 XP au lieu de 15 à 30 XP
+      const xpToGive = isVip ? getRandomXp(25, 45) : getRandomXp(15, 30);
       const query = { userId, guildId };
 
       let levelDoc = await Level.findOne(query);

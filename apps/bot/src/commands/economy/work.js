@@ -75,17 +75,27 @@ module.exports = {
         });
       }
 
+      // Détection du statut VIP pour un bonus de salaire de +50%
+      const isVip = Boolean(
+        interaction.member?.roles?.cache?.some(r => {
+          const n = r.name.toLowerCase();
+          return n.includes("vip") || n.includes("personnage important") || n.includes("légende");
+        })
+      );
+
       // Calcul du salaire aléatoire entre workMin et workMax
-      const earned = Math.floor(Math.random() * (maxSalary - minSalary + 1)) + minSalary;
+      const baseEarned = Math.floor(Math.random() * (maxSalary - minSalary + 1)) + minSalary;
+      const earned = isVip ? Math.round(baseEarned * 1.5) : baseEarned;
       user.balance = (user.balance || 0) + earned;
       await user.save();
 
       const randomJob = JOBS[Math.floor(Math.random() * JOBS.length)];
+      const vipBonusNotice = isVip ? " *(⭐ +50% Bonus VIP inclus !)*" : "";
 
       const embed = new EmbedBuilder()
         .setColor("#10B981")
         .setTitle("💼 Heure de paie !")
-        .setDescription(`${randomJob} et tu as gagné **+${earned} ${currencySymbol}** !`)
+        .setDescription(`${randomJob} et tu as gagné **+${earned} ${currencySymbol}**${vipBonusNotice} !`)
         .addFields({
           name: "Nouveau solde",
           value: `**${user.balance} ${currencySymbol}**`,

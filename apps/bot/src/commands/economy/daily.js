@@ -62,11 +62,21 @@ module.exports = {
         });
       }
 
-      user.balance = (user.balance || 0) + dailyAmount;
+      // Détection du statut VIP pour doubler la récompense quotidienne
+      const isVip = Boolean(
+        interaction.member?.roles?.cache?.some(r => {
+          const n = r.name.toLowerCase();
+          return n.includes("vip") || n.includes("personnage important") || n.includes("légende");
+        })
+      );
+      const effectiveAmount = isVip ? Math.round(dailyAmount * 2) : dailyAmount;
+
+      user.balance = (user.balance || 0) + effectiveAmount;
       await user.save();
 
+      const vipBonusNotice = isVip ? " *(⭐ Bonus VIP x2 appliqué !)*" : "";
       await interaction.editReply(
-        `🎉 Vous avez reçu votre récompense quotidienne de **${dailyAmount} ${currencySymbol}** !\n💰 Nouveau solde : **${user.balance} ${currencySymbol}**.`
+        `🎉 Vous avez reçu votre récompense quotidienne de **${effectiveAmount} ${currencySymbol}**${vipBonusNotice} !\n💰 Nouveau solde : **${user.balance} ${currencySymbol}**.`
       );
     } catch (error) {
       logger.error(`Il y a une erreur avec /daily : ${error}`);
