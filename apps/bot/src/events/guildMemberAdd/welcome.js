@@ -1,11 +1,26 @@
 const { EmbedBuilder } = require('discord.js');
 const logger = require('../../utils/logger');
 const GuildConfiguration = require('../../models/GuildConfiguration');
+const DailyStat = require('../../models/DailyStat');
 const { t } = require('../../utils/t');
 
 module.exports = {
   name: 'guildMemberAdd',
   async execute(client, member) {
+    if (!member.guild) return;
+
+    // Incrémenter le compteur de nouvelles arrivées réelles pour les statistiques
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await DailyStat.updateOne(
+        { guildId: member.guild.id, date: today },
+        { $inc: { joins: 1 } },
+        { upsert: true }
+      );
+    } catch {
+      // Ignorer
+    }
+
     try {
       const guildConfig = await GuildConfiguration.findOne({ guildId: member.guild.id });
       if (!guildConfig) return;

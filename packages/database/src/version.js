@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.4.0";
+const CURRENT_VERSION = "2.4.1";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,34 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.4.1",
+    date: "18 Novembre 2026",
+    type: "FIX",
+    githubUrl: getGitHubReleaseUrl("2.4.1"),
+    title: "Sparcky v2.4.1 : Précision des Métriques & Données Réelles",
+    summary: "Refonte complète du calcul des métriques du serveur : suppression des données simulées au profit du tracking réel en direct (messages et arrivées), résolution des pseudos/avatars Discord pour les classements, correction des collections MongoDB pour les niveaux (Level) et Giveaways, et calcul exact des sanctions.",
+    highlights: [
+      {
+        emoji: "🎯",
+        title: "Métriques 100% Réelles",
+        desc: "Remplacement des graphiques synthétiques par un système de suivi en temps réel des messages et arrivées.",
+        inline: true
+      },
+      {
+        emoji: "👥",
+        title: "Pseudos & Avatars",
+        desc: "Affichage des avatars et pseudos réels des membres dans les Tops XP et Économie au lieu des simples identifiants bruts.",
+        inline: true
+      },
+      {
+        emoji: "🔧",
+        title: "Synchronisation Collections",
+        desc: "Résolution des requêtes BDD pour les classements de niveaux, giveaways et salons de tickets.",
+        inline: true
+      }
+    ]
+  },
   {
     version: "2.4.0",
     date: "18 Novembre 2026",

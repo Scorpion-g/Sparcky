@@ -9,6 +9,7 @@ export const {
   Ticket,
   User,
   Warn,
+  DailyStat,
   defaultGuildConfig,
   CURRENT_VERSION,
   CHANGELOGS,

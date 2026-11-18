@@ -6,6 +6,7 @@ const Shop = require("./models/Shop");
 const Ticket = require("./models/Ticket");
 const User = require("./models/User");
 const Warn = require("./models/Warn");
+const DailyStat = require("./models/DailyStat");
 const { defaultGuildConfig } = require("./defaults");
 const {
   CURRENT_VERSION,
@@ -26,6 +27,7 @@ module.exports = {
   Ticket,
   User,
   Warn,
+  DailyStat,
   defaultGuildConfig,
   CURRENT_VERSION,
   CHANGELOGS,

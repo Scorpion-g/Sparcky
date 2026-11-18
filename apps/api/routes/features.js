@@ -1042,6 +1042,7 @@ router.post("/webhooks/github", async (req, res) => {
 })
 
 // ==========================================
+// ==========================================
 // MODULE 10 : STATISTIQUES & METRIQUES DU SERVEUR
 // ==========================================
 router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
@@ -1051,26 +1052,68 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
   try {
     const db = await getDb()
 
-    // 1. Récupération des infos Discord avec counts
-    let discordCounts = { members: 0, presences: 0, channels: 0, roles: 0, textChannels: 0, voiceChannels: 0 }
+    // 1. Récupération des informations et membres Discord
+    let discordCounts = {
+      members: 0,
+      humans: 0,
+      bots: 0,
+      presences: 0,
+      channels: 0,
+      roles: 0,
+      textChannels: 0,
+      voiceChannels: 0
+    }
+    const memberMap = new Map()
+    let channels = []
+
     if (token) {
       try {
-        const guildRes = await axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
-          headers: { Authorization: `Bot ${token}` }
-        })
-        const chRes = await axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
-          headers: { Authorization: `Bot ${token}` }
-        })
+        const [guildRes, chRes, membersRes] = await Promise.all([
+          axios.get(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
+            headers: { Authorization: `Bot ${token}` }
+          }).catch(() => null),
+          axios.get(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+            headers: { Authorization: `Bot ${token}` }
+          }).catch(() => null),
+          axios.get(`https://discord.com/api/v10/guilds/${guildId}/members?limit=1000`, {
+            headers: { Authorization: `Bot ${token}` }
+          }).catch(() => null)
+        ])
 
-        const channels = Array.isArray(chRes.data) ? chRes.data : []
+        channels = Array.isArray(chRes?.data) ? chRes.data : []
         const textCount = channels.filter(c => c.type === 0 || c.type === 5).length
         const voiceCount = channels.filter(c => c.type === 2).length
 
+        const membersList = Array.isArray(membersRes?.data) ? membersRes.data : []
+        let humanCount = 0
+        let botCount = 0
+
+        for (const m of membersList) {
+          if (m.user) {
+            const isBot = Boolean(m.user.bot)
+            if (isBot) botCount++
+            else humanCount++
+
+            memberMap.set(m.user.id, {
+              username: m.nick || m.user.global_name || m.user.username,
+              avatar: m.user.avatar ? `https://cdn.discordapp.com/avatars/${m.user.id}/${m.user.avatar}.png` : null,
+              bot: isBot
+            })
+          }
+        }
+
+        const totalMembers = guildRes?.data?.approximate_member_count || membersList.length || 0
+        if (humanCount === 0 && botCount === 0 && totalMembers > 0) {
+          humanCount = totalMembers
+        }
+
         discordCounts = {
-          members: guildRes.data?.approximate_member_count || 0,
-          presences: guildRes.data?.approximate_presence_count || 0,
+          members: totalMembers,
+          humans: humanCount,
+          bots: botCount,
+          presences: guildRes?.data?.approximate_presence_count || 0,
           channels: channels.length,
-          roles: Array.isArray(guildRes.data?.roles) ? guildRes.data.roles.length : 0,
+          roles: Array.isArray(guildRes?.data?.roles) ? guildRes.data.roles.length : 0,
           textChannels: textCount,
           voiceChannels: voiceCount
         }
@@ -1086,46 +1129,85 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
     const topRich = ecoUsers
       .sort((a, b) => (b.balance || 0) - (a.balance || 0))
       .slice(0, 5)
-      .map(u => ({ userId: u.userId, balance: u.balance || 0 }))
+      .map(u => {
+        const mem = memberMap.get(u.userId)
+        return {
+          userId: u.userId,
+          username: mem?.username || `Membre (${u.userId.slice(-4)})`,
+          avatar: mem?.avatar || null,
+          balance: u.balance || 0
+        }
+      })
 
-    // 3. Niveaux & XP
-    const levels = await db.collection("levels").find({ guildId }).toArray()
+    // 3. Niveaux & XP (collection Level ou levels)
+    let levels = await db.collection("Level").find({ guildId }).toArray()
+    if (!levels || levels.length === 0) {
+      levels = await db.collection("levels").find({ guildId }).toArray()
+    }
     const totalXp = levels.reduce((sum, l) => sum + (Number(l.xp) || 0), 0)
     const topLevels = levels
       .sort((a, b) => (b.level || 0) - (a.level || 0) || (b.xp || 0) - (a.xp || 0))
       .slice(0, 5)
-      .map(l => ({ userId: l.userId, level: l.level || 1, xp: l.xp || 0 }))
+      .map(l => {
+        const mem = memberMap.get(l.userId)
+        return {
+          userId: l.userId,
+          username: mem?.username || `Membre (${l.userId.slice(-4)})`,
+          avatar: mem?.avatar || null,
+          level: l.level || 0,
+          xp: l.xp || 0
+        }
+      })
 
-    // 4. Modération & Warns
-    const totalWarns = await db.collection("warns").countDocuments({ guildId })
+    // 4. Modération & Warns réels
+    const warnsDocs = await db.collection("warns").find({ guildId }).toArray()
+    const totalWarns = warnsDocs.reduce((sum, w) => sum + Math.max(0, Number(w.warn) || 0), 0)
+    const warnedUsersCount = warnsDocs.filter(w => (Number(w.warn) || 0) > 0).length
 
-    // 5. Tickets
-    const totalTickets = await db.collection("tickets").countDocuments({ guildId })
+    // 5. Tickets ouverts réels
+    let totalTickets = 0
+    const ticketSettings = await db.collection("ticketsettings").findOne({ guildId })
+    if (ticketSettings?.ticketCategoryId && Array.isArray(channels)) {
+      totalTickets = channels.filter(c => c.parent_id === ticketSettings.ticketCategoryId && c.name?.startsWith("ticket-")).length
+    }
 
-    // 6. Giveaways
-    const totalGiveaways = await db.collection("giveaways").countDocuments({ guildId })
+    // 6. Giveaways (collection Giveaways ou giveaways)
+    let totalGiveaways = await db.collection("Giveaways").countDocuments({ guildId })
+    if (totalGiveaways === 0) {
+      totalGiveaways = await db.collection("giveaways").countDocuments({ guildId })
+    }
 
-    // 7. Graphique d'activité sur les 7 derniers jours (calculé ou synthétisé avec l'activité)
+    // 7. Graphique d'activité sur les 7 derniers jours (données réelles enregistrées)
     const now = new Date()
-    const dailyActivity = []
+    const past7Days = []
+    const dateKeys = []
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now)
       d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split("T")[0]
       const dayStr = d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })
-
-      // Calcul des points d'activité basés sur les données réelles
-      const baseMembers = Math.max(1, discordCounts.members)
-      const variance = Math.sin(i * 1.5) * 5
-      const messagesCount = Math.max(12, Math.round((baseMembers * 2.5) + variance * 4 + (i === 0 ? 15 : 0)))
-      const joinsCount = Math.max(0, Math.round((baseMembers * 0.05) + (i % 2 === 0 ? 2 : 1)))
-
-      dailyActivity.push({
-        day: dayStr,
-        date: d.toISOString().split("T")[0],
-        messages: messagesCount,
-        joins: joinsCount
-      })
+      dateKeys.push(dateStr)
+      past7Days.push({ date: dateStr, day: dayStr })
     }
+
+    // Charger les métriques réelles stockées dans dailystats
+    const dbDailyStats = await db.collection("dailystats").find({
+      guildId,
+      date: { $in: dateKeys }
+    }).toArray()
+    const statsByDate = new Map(dbDailyStats.map(s => [s.date, s]))
+
+    const dailyActivity = past7Days.map(({ date, day }) => {
+      const stat = statsByDate.get(date)
+      return {
+        day,
+        date,
+        messages: stat?.messages || 0,
+        joins: stat?.joins || 0
+      }
+    })
+
+    const hasRecordedActivity = dailyActivity.some(d => d.messages > 0 || d.joins > 0)
 
     return res.json({
       guildId,
@@ -1142,7 +1224,8 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
         topLevels
       },
       moderation: {
-        totalWarns
+        totalWarns,
+        warnedUsersCount
       },
       tickets: {
         totalTickets
@@ -1150,7 +1233,8 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
       giveaways: {
         totalGiveaways
       },
-      activityChart: dailyActivity
+      activityChart: dailyActivity,
+      hasRecordedActivity
     })
   } catch (err) {
     console.error("GET /api/guilds/:guildId/stats error:", err)

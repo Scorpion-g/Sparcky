@@ -1346,9 +1346,16 @@ export default function GuildPage() {
                         <p className="mt-2 text-2xl font-black text-white sm:text-3xl">
                           {statsData?.discord?.members ?? guild?.approximate_member_count ?? "—"}
                         </p>
-                        <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
-                          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>{statsData?.discord?.presences ?? 0} {t("stats.onlineMembers")}</span>
+                        <div className="mt-2 flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            {statsData?.discord?.presences ?? 0} {t("stats.onlineMembers")}
+                          </span>
+                          {statsData?.discord?.humans !== undefined && (
+                            <span className="text-slate-400 text-[11px]">
+                              {statsData.discord.humans} hum. • {statsData.discord.bots} bots
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -1374,7 +1381,7 @@ export default function GuildPage() {
                           {(statsData?.economy?.totalCirculation ?? 0).toLocaleString()} {config?.currencySymbol || "$"}
                         </p>
                         <p className="mt-2 text-xs text-slate-400">
-                          {statsData?.economy?.totalAccounts ?? 0} comptes actifs
+                          {statsData?.economy?.totalAccounts ?? 0} comptes enregistrés
                         </p>
                       </div>
 
@@ -1389,6 +1396,31 @@ export default function GuildPage() {
                         <p className="mt-2 text-xs text-slate-400">
                           {statsData?.leveling?.totalRanked ?? 0} membres classés
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Ligne informative secondaire (Warns, Tickets ouverts, Giveaways) */}
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-900/40 px-4 py-3 text-xs text-slate-300">
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">🛡️</span>
+                          <span className="text-slate-400">Avertissements actifs</span>
+                        </span>
+                        <span className="font-bold text-amber-300">{statsData?.moderation?.totalWarns ?? 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-900/40 px-4 py-3 text-xs text-slate-300">
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">🎫</span>
+                          <span className="text-slate-400">Tickets ouverts</span>
+                        </span>
+                        <span className="font-bold text-sky-400">{statsData?.tickets?.totalTickets ?? 0}</span>
+                      </div>
+                      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-slate-900/40 px-4 py-3 text-xs text-slate-300">
+                        <span className="flex items-center gap-2">
+                          <span className="text-base">🎉</span>
+                          <span className="text-slate-400">Giveaways créés</span>
+                        </span>
+                        <span className="font-bold text-indigo-300">{statsData?.giveaways?.totalGiveaways ?? 0}</span>
                       </div>
                     </div>
 
@@ -1427,7 +1459,7 @@ export default function GuildPage() {
                               <line x1="0" y1="160" x2="700" y2="160" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
 
                               {(() => {
-                                const maxVal = Math.max(...statsData.activityChart.map(d => d.messages), 10)
+                                const maxVal = Math.max(...statsData.activityChart.map(d => d.messages), 5)
                                 const pts = statsData.activityChart.map((d, i) => {
                                   const x = (i / (statsData.activityChart.length - 1)) * 680 + 10
                                   const y = 170 - (d.messages / maxVal) * 130
@@ -1458,6 +1490,11 @@ export default function GuildPage() {
                           </div>
                         )}
                       </div>
+
+                      {/* Note explicative sur la traçabilité des métriques */}
+                      <p className="mt-3 text-center text-[11px] text-slate-500">
+                        💡 Les messages et arrivées sont enregistrés en temps réel par le bot au fur et à mesure des événements sur le serveur.
+                      </p>
                     </div>
 
                     {/* 2 Colonnes de Classement : Top Actifs & Top Riches */}
@@ -1479,7 +1516,17 @@ export default function GuildPage() {
                                   }`}>
                                     #{idx + 1}
                                   </span>
-                                  <span className="font-mono text-xs text-slate-300">ID: {user.userId}</span>
+                                  {user.avatar ? (
+                                    <img src={user.avatar} alt={user.username} className="h-8 w-8 rounded-full object-cover ring-1 ring-white/10" />
+                                  ) : (
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-950/60 text-xs font-bold text-indigo-300 ring-1 ring-indigo-500/30">
+                                      {(user.username || "U").slice(0, 1).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-white text-xs leading-none">{user.username}</p>
+                                    <p className="font-mono text-[10px] text-slate-500 mt-1">ID: {user.userId}</p>
+                                  </div>
                                 </div>
                                 <div className="text-right">
                                   <span className="font-bold text-indigo-400">Niv. {user.level}</span>
@@ -1510,7 +1557,17 @@ export default function GuildPage() {
                                   }`}>
                                     #{idx + 1}
                                   </span>
-                                  <span className="font-mono text-xs text-slate-300">ID: {user.userId}</span>
+                                  {user.avatar ? (
+                                    <img src={user.avatar} alt={user.username} className="h-8 w-8 rounded-full object-cover ring-1 ring-white/10" />
+                                  ) : (
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-950/60 text-xs font-bold text-amber-300 ring-1 ring-amber-500/30">
+                                      {(user.username || "U").slice(0, 1).toUpperCase()}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-white text-xs leading-none">{user.username}</p>
+                                    <p className="font-mono text-[10px] text-slate-500 mt-1">ID: {user.userId}</p>
+                                  </div>
                                 </div>
                                 <span className="font-bold text-amber-400">
                                   {user.balance.toLocaleString()} {config?.currencySymbol || "$"}
