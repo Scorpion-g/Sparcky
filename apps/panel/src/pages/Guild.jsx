@@ -1525,7 +1525,6 @@ export default function GuildPage() {
                                   )}
                                   <div>
                                     <p className="font-semibold text-white text-xs leading-none">{user.username}</p>
-                                    <p className="font-mono text-[10px] text-slate-500 mt-1">ID: {user.userId}</p>
                                   </div>
                                 </div>
                                 <div className="text-right">
@@ -1566,7 +1565,6 @@ export default function GuildPage() {
                                   )}
                                   <div>
                                     <p className="font-semibold text-white text-xs leading-none">{user.username}</p>
-                                    <p className="font-mono text-[10px] text-slate-500 mt-1">ID: {user.userId}</p>
                                   </div>
                                 </div>
                                 <span className="font-bold text-amber-400">
@@ -4388,8 +4386,18 @@ export default function GuildPage() {
                                       {ev.action}
                                     </span>
                                     {ev.target && (
-                                      <span className="text-xs text-slate-300">
-                                        → <span className="font-semibold text-white">{ev.target.username || `ID: ${ev.target.id}`}</span>
+                                      <span className="inline-flex items-center gap-1.5 text-xs text-slate-300">
+                                        <span className="text-slate-500">→</span>
+                                        {ev.target.avatar && (
+                                          <img
+                                            src={ev.target.avatar}
+                                            alt=""
+                                            className="h-4 w-4 rounded-full object-cover inline-block ring-1 ring-white/10"
+                                          />
+                                        )}
+                                        <span className="font-semibold text-white">
+                                          {ev.target.username || "Membre"}
+                                        </span>
                                       </span>
                                     )}
                                   </div>

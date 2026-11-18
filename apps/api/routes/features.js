@@ -4,6 +4,7 @@ import { authenticate } from "../middlewares/auth.js"
 import { getDb } from "../lib/mongo.js"
 import { CURRENT_VERSION, getChangelog, GITHUB_REPO, getGitHubReleaseUrl } from "@sparcky/database"
 import axios from "axios"
+import { resolveDiscordUser } from "../lib/discordResolver.js"
 
 const router = express.Router()
 
@@ -1126,11 +1127,17 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
     const ecoUsers = await db.collection("users").find({ guildId }).toArray()
     const totalBalance = ecoUsers.reduce((sum, u) => sum + (Number(u.balance) || 0), 0)
     const avgBalance = ecoUsers.length ? Math.round(totalBalance / ecoUsers.length) : 0
-    const topRich = ecoUsers
+    const rawTopRich = ecoUsers
       .sort((a, b) => (b.balance || 0) - (a.balance || 0))
       .slice(0, 5)
-      .map(u => {
-        const mem = memberMap.get(u.userId)
+
+    const topRich = await Promise.all(
+      rawTopRich.map(async u => {
+        let mem = memberMap.get(u.userId)
+        if (!mem || !mem.username || mem.username === u.userId) {
+          mem = await resolveDiscordUser(u.userId, token)
+          memberMap.set(u.userId, mem)
+        }
         return {
           userId: u.userId,
           username: mem?.username || `Membre (${u.userId.slice(-4)})`,
@@ -1138,6 +1145,7 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
           balance: u.balance || 0
         }
       })
+    )
 
     // 3. Niveaux & XP (collection Level ou levels)
     let levels = await db.collection("Level").find({ guildId }).toArray()
@@ -1145,11 +1153,17 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
       levels = await db.collection("levels").find({ guildId }).toArray()
     }
     const totalXp = levels.reduce((sum, l) => sum + (Number(l.xp) || 0), 0)
-    const topLevels = levels
+    const rawTopLevels = levels
       .sort((a, b) => (b.level || 0) - (a.level || 0) || (b.xp || 0) - (a.xp || 0))
       .slice(0, 5)
-      .map(l => {
-        const mem = memberMap.get(l.userId)
+
+    const topLevels = await Promise.all(
+      rawTopLevels.map(async l => {
+        let mem = memberMap.get(l.userId)
+        if (!mem || !mem.username || mem.username === l.userId) {
+          mem = await resolveDiscordUser(l.userId, token)
+          memberMap.set(l.userId, mem)
+        }
         return {
           userId: l.userId,
           username: mem?.username || `Membre (${l.userId.slice(-4)})`,
@@ -1158,6 +1172,7 @@ router.get("/guilds/:guildId/stats", authenticate, async (req, res) => {
           xp: l.xp || 0
         }
       })
+    )
 
     // 4. Modération & Warns réels
     const warnsDocs = await db.collection("warns").find({ guildId }).toArray()
