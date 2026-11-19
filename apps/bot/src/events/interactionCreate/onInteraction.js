@@ -255,6 +255,91 @@ module.exports = {
         });
         await submission.save();
 
+        // Création automatique de ticket si l'option est activée sur le formulaire
+        let ticketChannel = null;
+        if (form.createTicket) {
+          try {
+            const catId = form.ticketCategoryId || cfg?.ticketCategoryId;
+            const supRoleId = cfg?.ticketSupportRoleId;
+            const safeUsername = interaction.user.username.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 15) || "membre";
+
+            const permissions = [
+              {
+                id: interaction.guild.roles.everyone,
+                deny: ["ViewChannel"]
+              },
+              {
+                id: interaction.user.id,
+                allow: ["ViewChannel", "SendMessages", "ReadMessageHistory", "AttachFiles", "EmbedLinks"]
+              },
+              {
+                id: interaction.client.user.id,
+                allow: ["ViewChannel", "SendMessages", "ReadMessageHistory", "ManageChannels", "EmbedLinks"]
+              }
+            ];
+
+            if (supRoleId && interaction.guild.roles.cache.has(supRoleId)) {
+              permissions.push({
+                id: supRoleId,
+                allow: ["ViewChannel", "SendMessages", "ReadMessageHistory", "AttachFiles", "EmbedLinks"]
+              });
+            }
+
+            ticketChannel = await interaction.guild.channels.create({
+              name: `candidature-${safeUsername}`,
+              type: 0,
+              parent: catId || undefined,
+              permissionOverwrites: permissions,
+              reason: `Création automatique de ticket pour le formulaire ${form.title} par ${interaction.user.tag}`
+            });
+
+            const ticketEmbed = new EmbedBuilder()
+              .setColor(0x6366F1)
+              .setTitle(`🎫 Ticket Candidature : ${form.title}`)
+              .setDescription(`Bienvenue ${interaction.user} !\nVotre formulaire a bien été transmis au staff. Vous pouvez échanger directement avec l'équipe ici.`)
+              .setThumbnail(interaction.user.displayAvatarURL())
+              .setFooter({ text: `ID Candidature : ${submission._id}` })
+              .setTimestamp();
+
+            for (const ans of answers) {
+              ticketEmbed.addFields({
+                name: ans.label.slice(0, 256),
+                value: (ans.value || "*Non renseigné*").slice(0, 1024),
+                inline: false
+              });
+            }
+
+            const ticketRow = new ActionRowBuilder().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`form_accept_${submission._id}`)
+                .setLabel("Accepter")
+                .setStyle(ButtonStyle.Success)
+                .setEmoji("✅"),
+              new ButtonBuilder()
+                .setCustomId(`form_refuse_${submission._id}`)
+                .setLabel("Refuser")
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji("❌"),
+              new ButtonBuilder()
+                .setCustomId("ticket_close")
+                .setLabel("Fermer le ticket")
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji("🔒")
+            );
+
+            await ticketChannel.send({
+              content: `${interaction.user} ${supRoleId && interaction.guild.roles.cache.has(supRoleId) ? `<@&${supRoleId}>` : ""}`,
+              embeds: [ticketEmbed],
+              components: [ticketRow]
+            });
+
+            submission.ticketChannelId = ticketChannel.id;
+            await submission.save();
+          } catch (tErr) {
+            logger.error(`Erreur création ticket pour formulaire: ${tErr?.message}`);
+          }
+        }
+
         // Envoyer la notification dans le salon staff configuré
         const staffChannel = interaction.guild.channels.cache.get(form.targetChannelId);
         if (staffChannel && staffChannel.isTextBased()) {
@@ -270,6 +355,14 @@ module.exports = {
             staffEmbed.addFields({
               name: ans.label.slice(0, 256),
               value: (ans.value || "*Non renseigné*").slice(0, 1024),
+              inline: false
+            });
+          }
+
+          if (ticketChannel) {
+            staffEmbed.addFields({
+              name: "🎫 Salon Ticket Créé",
+              value: `${ticketChannel}`,
               inline: false
             });
           }
@@ -298,7 +391,9 @@ module.exports = {
         }
 
         return interaction.editReply({
-          content: "✅ **Votre candidature a été transmise avec succès au staff !** Vous recevrez une réponse prochainement."
+          content: ticketChannel
+            ? `✅ **Votre candidature a été transmise avec succès !** Un salon privé a été créé pour échanger avec le staff : ${ticketChannel}`
+            : "✅ **Votre candidature a été transmise avec succès au staff !** Vous recevrez une réponse prochainement."
         });
       } catch (err) {
         logger.error("[FORM_SUBMIT] Erreur soumission formulaire:", err);

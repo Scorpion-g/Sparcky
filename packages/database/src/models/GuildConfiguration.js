@@ -151,6 +151,8 @@ const guildConfigSchema = new mongoose.Schema({
         channelId: { type: String, required: true },
         targetChannelId: { type: String, required: true },
         roleToGiveOnAccept: { type: String, default: null },
+        createTicket: { type: Boolean, default: false },
+        ticketCategoryId: { type: String, default: null },
         messageId: { type: String, default: null },
         fields: [
           {

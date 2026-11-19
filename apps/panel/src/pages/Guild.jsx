@@ -220,6 +220,8 @@ export default function GuildPage() {
     channelId: "",
     targetChannelId: "",
     roleToGiveOnAccept: "",
+    createTicket: false,
+    ticketCategoryId: "",
     fields: [
       { id: "q1", label: "Présentation & Âge", placeholder: "Présentez-vous rapidement (prénom, âge, activités)...", style: "paragraph", required: true },
       { id: "q2", label: "Vos motivations & Disponibilités", placeholder: "Pourquoi postuler et quelles sont vos disponibilités ?", style: "paragraph", required: true },
@@ -3527,6 +3529,54 @@ export default function GuildPage() {
                               </select>
                             </div>
                           </div>
+
+                          {/* Option : Lier le formulaire aux tickets */}
+                          <div className="sm:col-span-2 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                                  <span>🎫</span> Lier ce formulaire aux tickets
+                                </h4>
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  Crée automatiquement un salon de ticket privé avec le membre et le staff dès la soumission de la candidature.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFormBuilder(prev => ({ ...prev, createTicket: !prev.createTicket }))}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  formBuilder.createTicket ? "bg-indigo-600" : "bg-slate-700"
+                                }`}
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                    formBuilder.createTicket ? "translate-x-5" : "translate-x-0"
+                                  }`}
+                                />
+                              </button>
+                            </div>
+
+                            {formBuilder.createTicket && (
+                              <div className="pt-2 border-t border-white/5">
+                                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                                  Catégorie Discord des Tickets (Optionnel)
+                                </label>
+                                <select
+                                  value={formBuilder.ticketCategoryId || ""}
+                                  onChange={e => setFormBuilder(prev => ({ ...prev, ticketCategoryId: e.target.value }))}
+                                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                                >
+                                  <option value="">Par défaut (Catégorie tickets configurée sur le serveur)</option>
+                                  {categoryChannels.map(cat => (
+                                    <option key={cat.id} value={cat.id}>📁 {cat.name}</option>
+                                  ))}
+                                </select>
+                                <p className="mt-1 text-[10px] text-slate-500">
+                                  Le salon privé du candidat sera créé sous cette catégorie.
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {/* Configuration des Questions (Modal Discord) */}
@@ -3644,14 +3694,22 @@ export default function GuildPage() {
                               <div key={form.id} className="rounded-2xl border border-white/5 bg-slate-950/60 p-5 space-y-3">
                                 <div className="flex items-center justify-between">
                                   <h4 className="font-bold text-white text-sm truncate">{form.title}</h4>
-                                  <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">
-                                    {form.fields?.length || 0} questions
-                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    {form.createTicket && (
+                                      <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                                        🎫 Ticket auto
+                                      </span>
+                                    )}
+                                    <span className="rounded bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-400">
+                                      {form.fields?.length || 0} questions
+                                    </span>
+                                  </div>
                                 </div>
                                 <div className="space-y-1 text-xs text-slate-400">
                                   <div>📢 Affiché dans : <span className="text-slate-200">#{pubCh}</span></div>
                                   <div>🛡️ Réception Staff : <span className="text-slate-200">#{staffCh}</span></div>
                                   {autoRole && <div>🎁 Rôle attribué : <span className="text-emerald-400">@{autoRole}</span></div>}
+                                  {form.createTicket && <div className="text-amber-300/90 font-medium">🎫 Crée automatiquement un salon de ticket privé</div>}
                                 </div>
                                 <div className="pt-2 flex items-center justify-between border-t border-white/5">
                                   <button

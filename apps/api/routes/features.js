@@ -5,6 +5,7 @@ import { getDb } from "../lib/mongo.js"
 import { CURRENT_VERSION, getChangelog, GITHUB_REPO, getGitHubReleaseUrl } from "@sparcky/database"
 import axios from "axios"
 import { resolveDiscordUser } from "../lib/discordResolver.js"
+import { getGuildConfig } from "../lib/guildConfigRepo.js"
 
 const router = express.Router()
 
@@ -1690,6 +1691,8 @@ router.post("/guilds/:guildId/forms/send", authenticate, async (req, res) => {
     channelId,
     targetChannelId,
     roleToGiveOnAccept = null,
+    createTicket = false,
+    ticketCategoryId = null,
     fields = []
   } = req.body || {}
 
@@ -1756,6 +1759,8 @@ router.post("/guilds/:guildId/forms/send", authenticate, async (req, res) => {
       channelId,
       targetChannelId,
       roleToGiveOnAccept: roleToGiveOnAccept || null,
+      createTicket: Boolean(createTicket),
+      ticketCategoryId: ticketCategoryId || null,
       messageId: discordRes.data?.id || null,
       fields: fields.slice(0, 5).map((f, idx) => ({
         id: f.id || `field_${idx + 1}`,
