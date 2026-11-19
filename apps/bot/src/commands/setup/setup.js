@@ -237,14 +237,21 @@ module.exports = {
         .addRoleOption((opt) =>
           opt
             .setName("role")
-            .setDescription("Rôle Discord")
-            .setRequired(true)
+            .setDescription("Rôle Discord (via le sélecteur Discord)")
+            .setRequired(false)
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("nom_ou_id")
+            .setDescription("Nom (recherche sans police spéciale) ou ID du rôle Discord")
+            .setAutocomplete(true)
+            .setRequired(false)
         )
         .addStringOption((opt) =>
           opt
             .setName("grade")
             .setDescription("Nom du groupe LuckPerms (ex: vip, hero, legende)")
-            .setRequired(true)
+            .setRequired(false)
         )
         .addBooleanOption((opt) =>
           opt
@@ -253,6 +260,32 @@ module.exports = {
             .setRequired(false)
         )
     ),
+
+  async autocomplete(interaction) {
+    try {
+      const focused = interaction.options.getFocused(true);
+      if (focused.name === "nom_ou_id") {
+        const search = (focused.value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const roles = interaction.guild?.roles.cache ? Array.from(interaction.guild.roles.cache.values()) : [];
+        const choices = roles
+          .filter((r) => r.id !== interaction.guild.id && !r.managed)
+          .filter((r) => {
+            if (!search) return true;
+            const cleanName = r.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            return cleanName.includes(search) || r.id.includes(search);
+          })
+          .sort((a, b) => b.position - a.position)
+          .slice(0, 25)
+          .map((r) => ({
+            name: `${r.name} (${r.id})`.slice(0, 100),
+            value: r.id,
+          }));
+        return interaction.respond(choices);
+      }
+    } catch {
+      // Ignorer silencieusement les erreurs d'autocomplétion
+    }
+  },
 
   async execute(interaction) {
     try {
@@ -494,8 +527,10 @@ module.exports = {
       }
 
       if (subcommand === "rolesync") {
-        const role = interaction.options.getRole("role");
-        const grade = interaction.options.getString("grade").toLowerCase().trim();
+        let role = interaction.options.getRole("role");
+        const roleInput = interaction.options.getString("nom_ou_id");
+        const rawGrade = interaction.options.getString("grade");
+        const grade = rawGrade ? rawGrade.toLowerCase().trim() : null;
         const supprimer = interaction.options.getBoolean("supprimer") || false;
 
         if (!config.minecraft) {
@@ -505,13 +540,45 @@ module.exports = {
           config.minecraft.roleSync = [];
         }
 
+        // Tenter de résoudre le rôle via nom_ou_id si pas fourni via l'option role
+        if (!role && roleInput) {
+          const trimmed = roleInput.trim();
+          role = interaction.guild.roles.cache.get(trimmed) ||
+                 interaction.guild.roles.cache.find((r) => r.name === trimmed) ||
+                 interaction.guild.roles.cache.find((r) => {
+                   const cleanA = r.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                   const cleanB = trimmed.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+                   return cleanA === cleanB;
+                 });
+        }
+
+        // Si aucun rôle ou grade n'est renseigné (ou rôle introuvable), afficher l'état et l'aide
+        if (!role || (!grade && !supprimer)) {
+          const links = config.minecraft.roleSync || [];
+          const lines = links.length > 0
+            ? links.map((l) => `• <@&${l.roleId}> ➔ Grade Minecraft: \`${l.groupName}\``).join("\n")
+            : "*Aucune synchronisation configurée pour le moment.*";
+
+          const embed = createSparkyEmbed({
+            title: "🔄 Synchronisation Rôles Discord ⟷ Grades Minecraft (LuckPerms)",
+            description:
+              `Voici les correspondances actuellement configurées sur votre serveur :\n\n${lines}\n\n` +
+              `**Comment associer un grade ?**\n` +
+              `• Via Discord : \`/setup rolesync role:<rôle> grade:<groupe_luckperms>\`\n` +
+              `• Si le rôle a une police spéciale (Unicode), utilisez : \`/setup rolesync nom_ou_id:<nom> grade:<groupe>\`\n` +
+              `• Via le Panel Web : Sur **[sparcky.matteoriviere.fr](https://sparcky.matteoriviere.fr)** (onglet **Minecraft & RCON**), tous les rôles du serveur s'affichent sans restriction !`,
+            color: COLORS.PRIMARY,
+          });
+          return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
         if (supprimer) {
           config.minecraft.roleSync = config.minecraft.roleSync.filter((s) => s.roleId !== role.id);
           await config.save();
 
           const embed = createSparkyEmbed({
             title: "🔗 Liaison Rôle ⟷ Grade Supprimée",
-            description: `La liaison pour le rôle <@&${role.id}> vers le groupe LuckPerms \`${grade}\` a été supprimée.`,
+            description: `La liaison pour le rôle <@&${role.id}> vers le groupe LuckPerms \`${grade || "existant"}\` a été supprimée.`,
             color: COLORS.WARNING,
           });
           return interaction.reply({ embeds: [embed], ephemeral: true });
