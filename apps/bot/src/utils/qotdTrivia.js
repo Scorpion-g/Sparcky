@@ -85,14 +85,112 @@ const TRIVIA_QUESTIONS = [
 // Map<guildId, { question, answers, reward, channelId, startedAt, hint }>
 const activeTriviaMap = new Map();
 
-function normalizeString(str) {
+/**
+ * Nettoie et normalise une chaîne (minuscules, sans accents, sans ponctuation, espaces uniques)
+ */
+function cleanText(str) {
   if (!str) return "";
-  return str
+  return String(str)
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+const normalizeString = cleanText;
+
+/**
+ * Supprime les articles courants en français et en anglais
+ */
+function stripArticles(str) {
+  if (!str) return "";
+  return str.replace(/^(le|la|les|l|un|une|des|du|de|d|the|a|an)\s+/i, "").trim();
+}
+
+/**
+ * Calcule la distance de Levenshtein entre deux chaînes
+ */
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Vérifie si une réponse attendue est repérée dans la phrase ou le message du joueur
+ * (gère les phrases conversationnelles "c'est 31", "je dirais l'émeraude", les articles et petites coquilles)
+ */
+function isAnswerInSentence(userMessage, targetAnswer) {
+  const normMsg = cleanText(userMessage);
+  const normAns = cleanText(targetAnswer);
+  if (!normMsg || !normAns) return false;
+
+  // 1. Égalité directe (avec ou sans articles)
+  if (normMsg === normAns) return true;
+
+  const ansNoArticle = stripArticles(normAns);
+  const msgNoArticle = stripArticles(normMsg);
+  if (normMsg === ansNoArticle || msgNoArticle === normAns || msgNoArticle === ansNoArticle) {
+    return true;
+  }
+
+  // 2. Recherche en tant que mot ou expression avec frontières de mots
+  const escapedAns = normAns.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regexAns = new RegExp("(?:^|\\s)" + escapedAns + "(?:\\s|$)", "i");
+  if (regexAns.test(normMsg)) return true;
+
+  if (ansNoArticle && ansNoArticle !== normAns) {
+    const escapedAnsNoArt = ansNoArticle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regexAnsNoArt = new RegExp("(?:^|\\s)" + escapedAnsNoArt + "(?:\\s|$)", "i");
+    if (regexAnsNoArt.test(normMsg)) return true;
+  }
+
+  // 3. Découpage en mots pour expressions et phrases conversationnelles
+  const msgWords = normMsg.split(" ").filter(Boolean);
+  const ansWords = normAns.split(" ").filter(Boolean);
+
+  if (ansWords.length > 1) {
+    // Si la réponse attendue comporte plusieurs mots (ex: "oeuf de dragon", "31 lingots")
+    const n = ansWords.length;
+    for (let i = 0; i <= msgWords.length - n; i++) {
+      const windowPhrase = msgWords.slice(i, i + n).join(" ");
+      if (windowPhrase === normAns || windowPhrase === ansNoArticle) return true;
+      if (normAns.length >= 6 && levenshtein(windowPhrase, normAns) <= 1) return true;
+    }
+  } else {
+    // Réponse en un seul mot ou nombre (ex: "31", "netherite", "mario", "link")
+    for (const w of msgWords) {
+      const wClean = stripArticles(w);
+      if (w === normAns || w === ansNoArticle || wClean === normAns || wClean === ansNoArticle) {
+        return true;
+      }
+      // Tolérance faute de frappe d'1 lettre si le mot fait au moins 5 caractères
+      if (normAns.length >= 5 && levenshtein(w, normAns) <= 1) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -216,12 +314,11 @@ async function checkTriviaAnswer(message) {
   if (!trivia) return false;
   if (trivia.channelId !== message.channel.id) return false;
 
-  const normalizedInput = normalizeString(message.content);
-  if (!normalizedInput || normalizedInput.length < 1) return false;
+  const cleanInput = cleanText(message.content);
+  if (!cleanInput || cleanInput.length < 1) return false;
 
-  const isCorrect = trivia.normalizedAnswers.some(ans => {
-    return normalizedInput === ans || (ans.length > 3 && normalizedInput.includes(ans));
-  });
+  const targetAnswers = Array.isArray(trivia.answers) ? trivia.answers : (trivia.normalizedAnswers || []);
+  const isCorrect = targetAnswers.some(ans => isAnswerInSentence(message.content, ans));
 
   if (!isCorrect) return false;
 
@@ -267,5 +364,9 @@ module.exports = {
   TRIVIA_QUESTIONS,
   postDailyTrivia,
   checkTriviaAnswer,
-  getActiveTrivia: (guildId) => activeTriviaMap.get(guildId)
+  getActiveTrivia: (guildId) => activeTriviaMap.get(guildId),
+  cleanText,
+  stripArticles,
+  isAnswerInSentence,
+  normalizeString
 };
