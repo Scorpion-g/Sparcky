@@ -48,6 +48,32 @@ module.exports = {
       });
     }, 60000);
 
+    // Vérification et tirages automatiques des Loteries Communautaires
+    const { checkActiveLotteries } = require('../../utils/lotteryUtils');
+    setTimeout(() => {
+      checkActiveLotteries(client).catch((err) => {
+        logger.error(`Erreur checkActiveLotteries initial: ${err?.message}`);
+      });
+    }, 10000);
+    setInterval(() => {
+      checkActiveLotteries(client).catch((err) => {
+        logger.error(`Erreur interval checkActiveLotteries: ${err?.message}`);
+      });
+    }, 60000); // Chaque minute
+
+    // Mise à jour périodique des Salons Statistiques Vocaux (Voice Counters)
+    const { updateAllVoiceCounters } = require('../../utils/counterUtils');
+    setTimeout(() => {
+      updateAllVoiceCounters(client).catch((err) => {
+        logger.error(`Erreur updateAllVoiceCounters initial: ${err?.message}`);
+      });
+    }, 12000);
+    setInterval(() => {
+      updateAllVoiceCounters(client).catch((err) => {
+        logger.error(`Erreur interval updateAllVoiceCounters: ${err?.message}`);
+      });
+    }, 5 * 60 * 1000); // Toutes les 5 minutes (protection rate limits Discord)
+
     // Diffusion automatique des mises à jour majeures si activé
     if (process.env.AUTO_BROADCAST_UPDATES === "true") {
       setTimeout(async () => {

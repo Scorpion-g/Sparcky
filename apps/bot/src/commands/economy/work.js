@@ -2,6 +2,7 @@ const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
+const { incrementQuestProgress } = require("../../utils/questUtils");
 
 const WORK_COOLDOWN_MS = 60 * 60 * 1000; // 1 heure
 
@@ -88,6 +89,9 @@ module.exports = {
       const earned = isVip ? Math.round(baseEarned * 1.5) : baseEarned;
       user.balance = (user.balance || 0) + earned;
       await user.save();
+
+      // Progression Quête Journalière ("work")
+      incrementQuestProgress(userId, guildId, "work", 1).catch(() => {});
 
       const randomJob = JOBS[Math.floor(Math.random() * JOBS.length)];
       const vipBonusNotice = isVip ? " *(⭐ +50% Bonus VIP inclus !)*" : "";

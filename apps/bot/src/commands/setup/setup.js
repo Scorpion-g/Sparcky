@@ -196,6 +196,62 @@ module.exports = {
             })
             .setRequired(false),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("counters")
+        .setDescription("Configurer les salons statistiques vocaux en direct (membres, joueurs Minecraft)")
+        .setDescriptionLocalizations({
+          fr: "Configurer les salons statistiques vocaux en direct (membres, joueurs Minecraft)",
+          "en-US": "Configure live voice statistics counters (members, Minecraft players)",
+        })
+        .addChannelOption((opt) =>
+          opt
+            .setName("membres")
+            .setDescription("Salon vocal pour le nombre total de membres")
+            .addChannelTypes(ChannelType.GuildVoice)
+            .setRequired(false)
+        )
+        .addChannelOption((opt) =>
+          opt
+            .setName("minecraft")
+            .setDescription("Salon vocal pour les joueurs en ligne sur Minecraft")
+            .addChannelTypes(ChannelType.GuildVoice)
+            .setRequired(false)
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("actif")
+            .setDescription("Activer ou désactiver les salons statistiques")
+            .setRequired(false)
+        )
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("rolesync")
+        .setDescription("Lier un rôle Discord à un grade Minecraft (LuckPerms via RCON)")
+        .setDescriptionLocalizations({
+          fr: "Lier un rôle Discord à un grade Minecraft (LuckPerms via RCON)",
+          "en-US": "Link a Discord role to a Minecraft group (LuckPerms via RCON)",
+        })
+        .addRoleOption((opt) =>
+          opt
+            .setName("role")
+            .setDescription("Rôle Discord")
+            .setRequired(true)
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("grade")
+            .setDescription("Nom du groupe LuckPerms (ex: vip, hero, legende)")
+            .setRequired(true)
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("supprimer")
+            .setDescription("Supprimer cette liaison au lieu de l'ajouter")
+            .setRequired(false)
+        )
     ),
 
   async execute(interaction) {
@@ -228,6 +284,11 @@ module.exports = {
           config.minecraft?.enabled && config.minecraft?.ip
             ? `✅ **${config.minecraft.name || "Minecraft"}** (\`${config.minecraft.ip}${config.minecraft.port && config.minecraft.port !== 25565 ? `:${config.minecraft.port}` : ""}\`)`
             : "❌ Non configuré / Désactivé";
+        const voiceCountersStatus = config.voiceCounters?.enabled
+          ? `🟢 Activé (${config.voiceCounters.memberChannelId ? `<#${config.voiceCounters.memberChannelId}>` : "Membres"} / ${config.voiceCounters.mcChannelId ? `<#${config.voiceCounters.mcChannelId}>` : "MC"})`
+          : "❌ Désactivé";
+        const roleSyncCount = Array.isArray(config.minecraft?.roleSync) ? config.minecraft.roleSync.length : 0;
+        const roleSyncStatus = roleSyncCount > 0 ? `🟢 ${roleSyncCount} liaison(s)` : "❌ Aucune liaison";
 
         const embed = createSparkyEmbed({
           title: "⚙️ Configuration Générale du Serveur",
@@ -242,6 +303,8 @@ module.exports = {
             { name: "🔊 Salons Vocaux Temporaires", value: tempvoice, inline: true },
             { name: "🌐 Langue du Bot", value: lang, inline: true },
             { name: "⛏️ Serveur Minecraft", value: mcStatus, inline: true },
+            { name: "📊 Salons Statistiques (Counters)", value: voiceCountersStatus, inline: true },
+            { name: "🔗 Synchronisation Grades MC", value: roleSyncStatus, inline: true },
           ],
         });
 
@@ -378,6 +441,105 @@ module.exports = {
             { name: "Adresse IP", value: `\`${config.minecraft.ip}\``, inline: true },
             { name: "Port", value: `\`${config.minecraft.port || 25565}\``, inline: true },
             { name: "État", value: config.minecraft.enabled ? "🟢 Activé" : "🔴 Désactivé", inline: true },
+          ],
+        });
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
+      if (subcommand === "counters") {
+        const memberChannel = interaction.options.getChannel("membres");
+        const mcChannel = interaction.options.getChannel("minecraft");
+        const actif = interaction.options.getBoolean("actif");
+
+        if (!config.voiceCounters) {
+          config.voiceCounters = { enabled: false, memberChannelId: null, mcChannelId: null };
+        }
+
+        if (memberChannel) config.voiceCounters.memberChannelId = memberChannel.id;
+        if (mcChannel) config.voiceCounters.mcChannelId = mcChannel.id;
+        if (actif !== null && actif !== undefined) {
+          config.voiceCounters.enabled = actif;
+        } else if (config.voiceCounters.memberChannelId || config.voiceCounters.mcChannelId) {
+          config.voiceCounters.enabled = true;
+        }
+
+        await config.save();
+
+        const { updateVoiceCounters } = require("../../utils/counterUtils");
+        updateVoiceCounters(interaction.client, interaction.guildId).catch(() => {});
+
+        const embed = createSparkyEmbed({
+          title: "📊 Salons Statistiques Vocaux (Voice Counters)",
+          description: "La configuration des salons statistiques a bien été mise à jour ! Ils se rafraîchissent automatiquement toutes les 5 minutes.",
+          color: COLORS.SUCCESS,
+          fields: [
+            {
+              name: "👥 Salon Membres",
+              value: config.voiceCounters.memberChannelId ? `<#${config.voiceCounters.memberChannelId}>` : "*Non défini*",
+              inline: true,
+            },
+            {
+              name: "🟢 Salon Minecraft",
+              value: config.voiceCounters.mcChannelId ? `<#${config.voiceCounters.mcChannelId}>` : "*Non défini*",
+              inline: true,
+            },
+            {
+              name: "État",
+              value: config.voiceCounters.enabled ? "🟢 Activé" : "🔴 Désactivé",
+              inline: true,
+            },
+          ],
+        });
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
+      if (subcommand === "rolesync") {
+        const role = interaction.options.getRole("role");
+        const grade = interaction.options.getString("grade").toLowerCase().trim();
+        const supprimer = interaction.options.getBoolean("supprimer") || false;
+
+        if (!config.minecraft) {
+          config.minecraft = { enabled: true, roleSync: [] };
+        }
+        if (!Array.isArray(config.minecraft.roleSync)) {
+          config.minecraft.roleSync = [];
+        }
+
+        if (supprimer) {
+          config.minecraft.roleSync = config.minecraft.roleSync.filter((s) => s.roleId !== role.id);
+          await config.save();
+
+          const embed = createSparkyEmbed({
+            title: "🔗 Liaison Rôle ⟷ Grade Supprimée",
+            description: `La liaison pour le rôle <@&${role.id}> vers le groupe LuckPerms \`${grade}\` a été supprimée.`,
+            color: COLORS.WARNING,
+          });
+          return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        const existing = config.minecraft.roleSync.find((s) => s.roleId === role.id);
+        if (existing) {
+          existing.groupName = grade;
+        } else {
+          config.minecraft.roleSync.push({
+            roleId: role.id,
+            groupName: grade,
+            addCommand: `lp user {player} parent add ${grade}`,
+            removeCommand: `lp user {player} parent remove ${grade}`,
+          });
+        }
+
+        await config.save();
+
+        const embed = createSparkyEmbed({
+          title: "🔗 Liaison Rôle Discord ⟷ Grade Minecraft Activée",
+          description:
+            `Dès qu'un membre reçoit ou perd le rôle <@&${role.id}> sur Discord, son grade \`${grade}\` sera automatiquement synchronisé sur Minecraft via LuckPerms !`,
+          color: COLORS.SUCCESS,
+          fields: [
+            { name: "🎭 Rôle Discord", value: `<@&${role.id}>`, inline: true },
+            { name: "⛏️ Groupe LuckPerms", value: `\`${grade}\``, inline: true },
+            { name: "⚙️ Commande RCON", value: `\`lp user {player} parent add ${grade}\``, inline: false },
           ],
         });
         return interaction.reply({ embeds: [embed], ephemeral: true });

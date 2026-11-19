@@ -62,8 +62,23 @@ const guildConfigSchema = new mongoose.Schema({
   xpEnabled: { type: Boolean, default: true },
   xpChannelId: { type: String, default: null }, // null = même salon, "none" = muet, ID = salon spécifique
   levelRoles: {
-    type: [{ level: Number, roleId: String }],
+    type: [{ level: Number, roleId: String, mcCommand: { type: String, default: null } }],
     default: [],
+  },
+
+  // --- Salons Statistiques Vocaux (Voice Counters) ---
+  voiceCounters: {
+    enabled: { type: Boolean, default: false },
+    mcChannelId: { type: String, default: null },
+    memberChannelId: { type: String, default: null },
+    lastUpdate: { type: Date, default: null }
+  },
+
+  // --- Loterie Communautaire ---
+  lottery: {
+    enabled: { type: Boolean, default: true },
+    ticketPrice: { type: Number, default: 50 },
+    channelId: { type: String, default: null }
   },
 
   // --- Tickets ---
@@ -235,7 +250,27 @@ const guildConfigSchema = new mongoose.Schema({
     // Configuration RCON (Optionnelle & Sécurisée)
     rconEnabled: { type: Boolean, default: false },
     rconPort: { type: Number, default: 25575 },
-    rconPassword: { type: String, default: null } // Chiffré AES-256-GCM
+    rconPassword: { type: String, default: null }, // Chiffré AES-256-GCM
+
+    // Synchronisation Rôles Discord vers Grades Minecraft
+    roleSync: {
+      type: [
+        {
+          roleId: { type: String, required: true },
+          groupName: { type: String, default: "" },
+          addCommand: { type: String, default: "lp user {player} parent add {group}" },
+          removeCommand: { type: String, default: "lp user {player} parent remove {group}" }
+        }
+      ],
+      default: []
+    },
+
+    // Récompense automatique de Boost Discord en jeu
+    boostReward: {
+      enabled: { type: Boolean, default: false },
+      command: { type: String, default: "" }, // ex: give {player} diamond 10
+      message: { type: String, default: "🎉 Merci pour ton Boost Discord {player} ! Voici ta récompense en jeu !" }
+    }
   }
 });
 

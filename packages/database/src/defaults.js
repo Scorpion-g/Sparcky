@@ -53,6 +53,21 @@ function defaultGuildConfig() {
     xpChannelId: null,
     levelRoles: [],
 
+    // Salons Statistiques Vocaux
+    voiceCounters: {
+      enabled: false,
+      mcChannelId: null,
+      memberChannelId: null,
+      lastUpdate: null
+    },
+
+    // Loterie Communautaire
+    lottery: {
+      enabled: true,
+      ticketPrice: 50,
+      channelId: null
+    },
+
     // Tickets
     ticketEnabled: false,
     ticketCategoryId: null,
@@ -104,7 +119,13 @@ function defaultGuildConfig() {
       statusMessageId: null,
       rconEnabled: false,
       rconPort: 25575,
-      rconPassword: null
+      rconPassword: null,
+      roleSync: [],
+      boostReward: {
+        enabled: false,
+        command: "",
+        message: "🎉 Merci pour ton Boost Discord {player} ! Voici ta récompense en jeu !"
+      }
     }
   };
 }

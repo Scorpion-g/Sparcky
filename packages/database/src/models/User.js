@@ -37,6 +37,19 @@ const userSchema = new Schema({
     type: [String],
     default: []
   },
+  reputation: {
+    type: Number,
+    default: 0
+  },
+  lastRep: {
+    type: Date,
+    default: null
+  },
+  dailyQuests: {
+    date: { type: String, default: null },
+    quests: { type: Array, default: [] },
+    claimed: { type: Boolean, default: false }
+  },
   minecraftUsername: {
     type: String,
     default: null,

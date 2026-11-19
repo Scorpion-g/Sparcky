@@ -2,6 +2,7 @@ const { SlashCommandBuilder } = require("discord.js");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
+const { incrementQuestProgress } = require("../../utils/questUtils");
 
 const dailyAmount = 500;
 
@@ -73,6 +74,9 @@ module.exports = {
 
       user.balance = (user.balance || 0) + effectiveAmount;
       await user.save();
+
+      // Progression Quête Journalière ("daily")
+      incrementQuestProgress(interaction.member.id, interaction.guild.id, "daily", 1).catch(() => {});
 
       const vipBonusNotice = isVip ? " *(⭐ Bonus VIP x2 appliqué !)*" : "";
       await interaction.editReply(

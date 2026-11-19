@@ -8,6 +8,7 @@ const User = require("./models/User");
 const Warn = require("./models/Warn");
 const DailyStat = require("./models/DailyStat");
 const FormSubmission = require("./models/FormSubmission");
+const Lottery = require("./models/Lottery");
 const { defaultGuildConfig } = require("./defaults");
 const { encrypt, decrypt } = require("./crypto");
 const {
@@ -31,6 +32,7 @@ module.exports = {
   Warn,
   DailyStat,
   FormSubmission,
+  Lottery,
   defaultGuildConfig,
   encrypt,
   decrypt,

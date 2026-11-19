@@ -1,6 +1,6 @@
 const GITHUB_REPO = "Scorpion-g/Sparcky";
 const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`;
-const CURRENT_VERSION = "2.5.0";
+const CURRENT_VERSION = "2.6.0";
 
 function getGitHubReleaseUrl(version = CURRENT_VERSION) {
   const tag = version.startsWith("v") ? version : `v${version}`;
@@ -8,6 +8,61 @@ function getGitHubReleaseUrl(version = CURRENT_VERSION) {
 }
 
 const CHANGELOGS = [
+  {
+    version: "2.6.0",
+    date: "19 Novembre 2026",
+    type: "FEATURE",
+    githubUrl: getGitHubReleaseUrl("2.6.0"),
+    title: "Sparcky v2.6.0 : Quêtes Journalières, Loterie, Duels, Réputation & Synergie Minecraft",
+    summary: "Mise à jour majeure d'engagement et d'interconnexion : Quêtes quotidiennes avec bonus Grand Chelem, Loterie communautaire avec jackpot progressif, Duels PvP entre membres avec mises, Système de réputation bienveillant (/rep), Salons vocaux statistiques en temps réel, Synchronisation automatique Rôles Discord vers Grades Minecraft LuckPerms et Récompenses de Boost & Niveaux in-game via RCON.",
+    highlights: [
+      {
+        emoji: "📜",
+        title: "Quêtes Journalières (/quests)",
+        desc: "3 défis quotidiens renouvelés à minuit avec barre de progression et bonus +50% Grand Chelem.",
+        inline: true
+      },
+      {
+        emoji: "🎰",
+        title: "Loterie Communautaire (/loterie)",
+        desc: "Achat de tickets pour gonfler le jackpot, tirage au sort hebdomadaire automatique le dimanche à 20h.",
+        inline: true
+      },
+      {
+        emoji: "⚔️",
+        title: "Duels PvP (/duel)",
+        desc: "Défiez un membre sur un jet de dés ou un chifumi avec mise de pièces en jeu et taxe casino régulatrice.",
+        inline: true
+      },
+      {
+        emoji: "🌟",
+        title: "Système de Réputation (/rep)",
+        desc: "Remerciez les membres serviables une fois par jour et hissez-vous au classement /leaderboard rep.",
+        inline: true
+      },
+      {
+        emoji: "📊",
+        title: "Voice Counters (/setup counters)",
+        desc: "Salons vocaux statistiques mis à jour automatiquement (Membres Discord & Joueurs en jeu Minecraft).",
+        inline: true
+      },
+      {
+        emoji: "⛏️",
+        title: "Synergie Minecraft & LuckPerms",
+        desc: "Synchronisation instantanée des rôles vers les grades Minecraft, récompense in-game de Boost et paliers de niveaux.",
+        inline: true
+      }
+    ],
+    details: [
+      "Nouvelle commande `/quests` (view, claim) et utilitaire `questUtils` intégré à l'activité Discord.",
+      "Nouvelle commande `/loterie` (info, buy, draw) et système de tirage hebdomadaire automatisé.",
+      "Nouvelle commande `/duel` (adversaire, mise, jeu: dés ou chifumi) avec confirmation interactive par bouton.",
+      "Nouvelle commande `/rep` (membre, raison) et intégration dans `/leaderboard rep`.",
+      "Nouveaux sous-commandes `/setup counters` et `/setup rolesync`.",
+      "Listener `guildMemberUpdate` pour synchronisation LuckPerms et récompense de Nitro Boost.",
+      "Exécution automatique de commandes RCON sur les paliers de niveaux configurés."
+    ]
+  },
   {
     version: "2.5.0",
     date: "19 Novembre 2026",

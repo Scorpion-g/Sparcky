@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
+const { incrementQuestProgress } = require("../../utils/questUtils");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -126,6 +127,9 @@ module.exports = {
 
     user.lastCoinflip = new Date();
     await user.save();
+
+    // Progression Quête Journalière ("coinflip")
+    incrementQuestProgress(userId, guildId, "coinflip", 1).catch(() => {});
 
     let embedColor = won ? "#10B981" : "#EF4444";
     let titleText = `🪙 Résultat du Pile ou Face : ${result.toUpperCase()}`;

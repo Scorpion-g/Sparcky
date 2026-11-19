@@ -4,6 +4,8 @@ const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
 const logger = require("../../utils/logger");
 const { t } = require("../../utils/t");
+const { incrementQuestProgress } = require("../../utils/questUtils");
+const { executeRcon } = require("../../utils/rcon");
 
 // Cooldowns pour éviter le spam XP et récompenses chat
 const cooldowns = new Set();
@@ -64,7 +66,10 @@ module.exports = {
         ).catch(() => {});
       }
 
-      // --- 2. Système d'XP et de Niveaux ---
+      // --- 2. Progression Quête Journalière ("messages") ---
+      incrementQuestProgress(userId, guildId, "messages", 1).catch(() => {});
+
+      // --- 3. Système d'XP et de Niveaux ---
       if (guildConfig && guildConfig.xpEnabled === false) {
         addCooldown(userId);
         return;
@@ -88,17 +93,45 @@ module.exports = {
           );
           levelDoc.level++;
 
-          // Attribution automatique du rôle de palier si configuré
+          let roleAwarded = null;
+          let mcRewardSent = false;
+          let mcPlayerName = null;
+
+          // Attribution automatique du rôle de palier et récompense Minecraft si configuré
           if (Array.isArray(guildConfig?.levelRoles)) {
             const levelRoleConfig = guildConfig.levelRoles.find(
               (r) => Number(r.level) === Number(levelDoc.level)
             );
-            if (levelRoleConfig && levelRoleConfig.roleId) {
-              const role = message.guild.roles.cache.get(levelRoleConfig.roleId);
-              if (role && message.member) {
-                await message.member.roles.add(role).catch(err => {
-                  logger.warn(`Impossible d'attribuer le rôle de niveau ${levelDoc.level}: ${err?.message}`);
-                });
+            if (levelRoleConfig) {
+              if (levelRoleConfig.roleId) {
+                const role = message.guild.roles.cache.get(levelRoleConfig.roleId);
+                if (role && message.member) {
+                  await message.member.roles.add(role).catch(err => {
+                    logger.warn(`Impossible d'attribuer le rôle de niveau ${levelDoc.level}: ${err?.message}`);
+                  });
+                  roleAwarded = role.name;
+                }
+              }
+
+              // Exécution de la commande RCON Minecraft si palier configuré
+              if (levelRoleConfig.mcCommand && guildConfig.minecraft?.enabled && guildConfig.minecraft?.rconEnabled) {
+                const userDoc = await User.findOne({ guildId, userId }).lean();
+                if (userDoc?.minecraftUsername) {
+                  mcPlayerName = userDoc.minecraftUsername;
+                  const finalCmd = levelRoleConfig.mcCommand.replace(/\{player\}/gi, mcPlayerName);
+                  try {
+                    await executeRcon({
+                      host: guildConfig.minecraft.ip,
+                      port: guildConfig.minecraft.rconPort || 25575,
+                      password: guildConfig.minecraft.rconPassword,
+                      command: finalCmd,
+                    });
+                    mcRewardSent = true;
+                    logger.info(`[LEVEL-REWARD] Commande MC envoyée à ${mcPlayerName}: "${finalCmd}"`);
+                  } catch (mcErr) {
+                    logger.warn(`[LEVEL-REWARD] Échec commande MC pour ${mcPlayerName}: ${mcErr.message}`);
+                  }
+                }
               }
             }
           }
@@ -110,10 +143,18 @@ module.exports = {
                 ? message.guild.channels.cache.get(guildConfig.xpChannelId) || message.channel
                 : message.channel;
 
+            let desc = `Félicitations ${message.member}, vous venez d'atteindre le **Niveau ${levelDoc.level}** ! 🚀\n`;
+            if (roleAwarded) {
+              desc += `\n🎭 **Nouveau rôle débloqué :** \`@${roleAwarded}\` !`;
+            }
+            if (mcRewardSent && mcPlayerName) {
+              desc += `\n🎁 **Cadeau In-Game :** Récompense envoyée à \`${mcPlayerName}\` sur Minecraft !`;
+            }
+
             const embed = new EmbedBuilder()
               .setColor("#10B981")
               .setTitle("🎉 Nouveau Niveau Débloqué !")
-              .setDescription(`Félicitations ${message.member}, vous venez d'atteindre le **Niveau ${levelDoc.level}** ! 🚀`)
+              .setDescription(desc)
               .setThumbnail(message.author.displayAvatarURL())
               .setTimestamp();
 

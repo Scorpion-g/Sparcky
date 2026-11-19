@@ -34,6 +34,15 @@ module.exports = {
           fr: "Classement des membres avec le plus haut niveau",
           "en-US": "Leaderboard of members with the highest level",
         }),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName("rep")
+        .setDescription("Classement des membres avec le plus de réputation")
+        .setDescriptionLocalizations({
+          fr: "Classement des membres avec le plus de réputation",
+          "en-US": "Leaderboard of members with the highest reputation",
+        }),
     ),
 
   /**
@@ -85,6 +94,12 @@ module.exports = {
         titleKey: "ECONOMY.LEADERBOARD.TITLES.LEVEL",
         unitKey: "ECONOMY.LEADERBOARD.UNITS.LEVEL",
       },
+      rep: {
+        Model: require("../../models/User"),
+        field: "reputation",
+        title: "🌟 Classement de la Réputation",
+        unit: "point(s) de réputation",
+      },
     };
 
     const cfg = configs[subcommand];
@@ -107,8 +122,8 @@ module.exports = {
       );
     }
 
-    const unit = await interaction.t(cfg.unitKey);
-    const title = await interaction.t(cfg.titleKey);
+    const unit = cfg.unit || (cfg.unitKey ? await interaction.t(cfg.unitKey) : "");
+    const title = cfg.title || (cfg.titleKey ? await interaction.t(cfg.titleKey) : "Classement");
 
     let description = "";
     for (let i = 0; i < topEntries.length; i++) {

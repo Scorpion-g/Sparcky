@@ -32,6 +32,23 @@ module.exports = {
         return handleGiveawayButton(interaction);
       }
 
+      // 1.1b Quêtes Journalières (Bouton réclamer)
+      if (interaction.customId === "quest_claim_btn") {
+        const { claimQuestRewards } = require("../../utils/questUtils");
+        await interaction.deferReply({ ephemeral: true });
+        const result = await claimQuestRewards(interaction.user.id, interaction.guild.id);
+        if (!result.success) {
+          if (result.reason === "ALREADY_CLAIMED") {
+            return interaction.editReply({ content: "⏳ Vous avez déjà réclamé vos récompenses aujourd'hui !" });
+          }
+          return interaction.editReply({ content: "⚠️ Aucune quête prête à être réclamée pour le moment." });
+        }
+        const bonusNotice = result.allCompleted ? "\n🌟 **Grand Chelem Réussi (+50%) !**" : "";
+        return interaction.editReply({
+          content: `🎉 Félicitations ! Vous avez réclamé vos récompenses de quêtes :\n💰 **+${result.totalCoins} pièces**\n⭐ **+${result.totalXp} points d'XP**${bonusNotice}`
+        });
+      }
+
       // 1.2 Rôles par Réaction (Boutons simples)
       if (interaction.customId.startsWith("role_react_")) {
         const roleId = interaction.customId.replace("role_react_", "");
