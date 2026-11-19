@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { clearJwt, getJwt } from "../lib/auth"
 import { useLanguage, LanguageSelector } from "../lib/i18n"
+import MinecraftTab from "../components/MinecraftTab"
 
 const API_BASE_URL = ""
 
@@ -85,7 +86,7 @@ export default function GuildPage() {
   const [shopLoading, setShopLoading] = useState(false)
   const [showShopModal, setShowShopModal] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
-  const [itemForm, setItemForm] = useState({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "" })
+  const [itemForm, setItemForm] = useState({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "", minecraftCommand: "" })
 
   // Ajustement de solde
   const [balanceModalUser, setBalanceModalUser] = useState(null)
@@ -791,6 +792,17 @@ export default function GuildPage() {
     setSaveMessage(null)
   }
 
+  function updateMinecraftField(field, val) {
+    setConfig(prev => ({
+      ...prev,
+      minecraft: {
+        ...(prev?.minecraft || {}),
+        [field]: val
+      }
+    }))
+    setSaveMessage(null)
+  }
+
   function addBadWord() {
     const word = newWordInput.trim().toLowerCase()
     if (!word) return
@@ -902,7 +914,7 @@ export default function GuildPage() {
 
       setShowShopModal(false)
       setEditingItem(null)
-      setItemForm({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "" })
+      setItemForm({ name: "", description: "", price: 100, stock: -1, type: "role", roleId: "", minecraftCommand: "" })
       fetchShop()
     } catch (e) {
       alert(e.message)
@@ -1734,6 +1746,7 @@ export default function GuildPage() {
                       <option value="warns">📜 {t("tabs.warns")}</option>
                       <option value="audit">📜 {t("tabs.audit")}</option>
                       <option value="words">🚫 {t("tabs.words")} ({config?.badWords?.length || 0})</option>
+                      <option value="minecraft">⛏️ {t("tabs.minecraft") || "Minecraft & RCON"}</option>
                       <option value="settings">⚙️ {t("tabs.settings")}</option>
                     </select>
                     <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -1760,6 +1773,7 @@ export default function GuildPage() {
                   <TabButton active={activeTab === "warns"} onClick={() => setActiveTab("warns")} icon="📜" label={t("tabs.warns")} />
                   <TabButton active={activeTab === "audit"} onClick={() => setActiveTab("audit")} icon="📜" label={t("tabs.audit")} />
                   <TabButton active={activeTab === "words"} onClick={() => setActiveTab("words")} icon="🚫" label={`${t("tabs.words")} (${config?.badWords?.length || 0})`} />
+                  <TabButton active={activeTab === "minecraft"} onClick={() => setActiveTab("minecraft")} icon="⛏️" label={t("tabs.minecraft") || "Minecraft & RCON"} />
                   <TabButton active={activeTab === "settings"} onClick={() => setActiveTab("settings")} icon="⚙️" label={t("tabs.settings")} />
                 </div>
 
@@ -4202,7 +4216,7 @@ export default function GuildPage() {
                           type="button"
                           onClick={() => {
                             setEditingItem(null)
-                            setItemForm({ name: "", description: "", price: 200, stock: -1, type: "role", roleId: roles[0]?.id || "" })
+                            setItemForm({ name: "", description: "", price: 200, stock: -1, type: "role", roleId: roles[0]?.id || "", minecraftCommand: "give {player} diamond 5" })
                             setShowShopModal(true)
                           }}
                           className="inline-flex items-center gap-2 rounded-2xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
@@ -4234,9 +4248,29 @@ export default function GuildPage() {
 
                               <div className="mt-4 pt-3 border-t border-white/5">
                                 <div className="flex items-center justify-between text-[11px] text-slate-400">
-                                  <span>Type : <strong className="text-slate-300">{item.type === "role" ? "🎭 Rôle Discord" : "📦 Objet"}</strong></span>
-                                  <span>Stock : <strong className="text-slate-300">{item.stock === -1 ? "Illimité" : item.stock}</strong></span>
+                                  <span>
+                                    Type :{" "}
+                                    <strong className="text-slate-300">
+                                      {item.type === "role"
+                                        ? "🎭 Rôle Discord"
+                                        : item.type === "minecraft"
+                                          ? "⛏️ Minecraft"
+                                          : "📦 Objet"}
+                                    </strong>
+                                  </span>
+                                  <span>
+                                    Stock :{" "}
+                                    <strong className="text-slate-300">
+                                      {item.stock === -1 ? "Illimité" : item.stock}
+                                    </strong>
+                                  </span>
                                 </div>
+
+                                {item.type === "minecraft" && item.minecraftCommand && (
+                                  <div className="mt-2 rounded-lg bg-emerald-500/10 px-2 py-1 text-[11px] font-mono text-emerald-300 border border-emerald-500/20 truncate">
+                                    ⚡ {item.minecraftCommand}
+                                  </div>
+                                )}
 
                                 <div className="mt-3 flex gap-2">
                                   <button
@@ -4249,7 +4283,8 @@ export default function GuildPage() {
                                         price: item.price,
                                         stock: item.stock,
                                         type: item.type,
-                                        roleId: item.roleId || ""
+                                        roleId: item.roleId || "",
+                                        minecraftCommand: item.minecraftCommand || ""
                                       })
                                       setShowShopModal(true)
                                     }}
@@ -4307,7 +4342,19 @@ export default function GuildPage() {
                                     ) : (
                                       <div className="h-7 w-7 rounded-full bg-indigo-600/20 text-center font-bold text-xs leading-7 text-indigo-300">?</div>
                                     )}
-                                    <span className="font-semibold text-white">{user.username}</span>
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-white">{user.username}</span>
+                                      {user.minecraftUsername && (
+                                        <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
+                                          <img
+                                            src={`https://mc-heads.net/avatar/${encodeURIComponent(user.minecraftUsername)}/16.png`}
+                                            alt={user.minecraftUsername}
+                                            className="h-3.5 w-3.5 rounded-sm"
+                                          />
+                                          {user.minecraftUsername}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="px-4 py-3 font-mono font-bold text-emerald-400">
@@ -5949,6 +5996,18 @@ export default function GuildPage() {
                   </div>
                 )}
 
+                {/* Section Minecraft & RCON */}
+                {activeTab === "minecraft" && (
+                  <MinecraftTab
+                    config={config}
+                    updateMinecraftField={updateMinecraftField}
+                    guildId={id}
+                    token={token}
+                    apiBaseUrl={API_BASE_URL}
+                    textChannels={textChannels}
+                  />
+                )}
+
                 {/* Section 9 : Langue & Général */}
                 {activeTab === "settings" && (
                   <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
@@ -6125,11 +6184,11 @@ export default function GuildPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-300">Type d'article</label>
-                <div className="mt-1 grid grid-cols-2 gap-2">
+                <div className="mt-1 grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setItemForm({ ...itemForm, type: "role" })}
-                    className={`rounded-xl border p-2.5 text-xs font-bold transition ${
+                    className={`rounded-xl border p-2 text-xs font-bold transition ${
                       itemForm.type === "role"
                         ? "border-indigo-500 bg-indigo-600 text-white"
                         : "border-white/10 bg-slate-950 text-slate-300 hover:border-white/20"
@@ -6140,7 +6199,7 @@ export default function GuildPage() {
                   <button
                     type="button"
                     onClick={() => setItemForm({ ...itemForm, type: "item" })}
-                    className={`rounded-xl border p-2.5 text-xs font-bold transition ${
+                    className={`rounded-xl border p-2 text-xs font-bold transition ${
                       itemForm.type === "item"
                         ? "border-indigo-500 bg-indigo-600 text-white"
                         : "border-white/10 bg-slate-950 text-slate-300 hover:border-white/20"
@@ -6148,8 +6207,48 @@ export default function GuildPage() {
                   >
                     📦 Objet Virtuel
                   </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setItemForm({
+                        ...itemForm,
+                        type: "minecraft",
+                        minecraftCommand: itemForm.minecraftCommand || "give {player} diamond 5"
+                      })
+                    }
+                    className={`rounded-xl border p-2 text-xs font-bold transition ${
+                      itemForm.type === "minecraft"
+                        ? "border-emerald-500 bg-emerald-600 text-white"
+                        : "border-white/10 bg-slate-950 text-slate-300 hover:border-white/20"
+                    }`}
+                  >
+                    ⛏️ Minecraft
+                  </button>
                 </div>
               </div>
+
+              {itemForm.type === "minecraft" && (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-emerald-300">
+                      Commande Console Minecraft (RCON)
+                    </label>
+                    <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-mono text-emerald-300">
+                      Variable : {"{player}"}
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={itemForm.minecraftCommand || ""}
+                    onChange={e => setItemForm({ ...itemForm, minecraftCommand: e.target.value })}
+                    placeholder="Ex: give {player} diamond 10"
+                    className="mt-2 w-full rounded-xl border border-emerald-500/30 bg-slate-950 px-3.5 py-2 font-mono text-sm text-emerald-300 outline-none focus:border-emerald-400"
+                  />
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
+                    💡 La commande sera exécutée par la console de votre serveur Minecraft. <code className="text-emerald-300 font-mono">{"{player}"}</code> sera automatiquement remplacé par le pseudo Minecraft lié du membre (via <code className="text-indigo-300 font-mono">/link-mc</code>).
+                  </p>
+                </div>
+              )}
 
               {itemForm.type === "role" && (
                 <div>

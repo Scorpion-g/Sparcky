@@ -29,11 +29,16 @@ const shopItemSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['role', 'item', 'other'], // Example types
+    enum: ['role', 'item', 'minecraft', 'other'], // Example types
   },
   roleId: {
     type: String,
     default: null,
+  },
+  minecraftCommand: {
+    type: String,
+    default: null,
+    trim: true,
   },
 });
 

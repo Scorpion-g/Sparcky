@@ -88,6 +88,20 @@ function defaultGuildConfig() {
       mode: "both",
       customQuestions: [],
       lastQuestionDate: null
+    },
+
+    // Intégration Minecraft (Optionnelle par serveur)
+    minecraft: {
+      enabled: false,
+      ip: null,
+      port: 25565,
+      name: "Serveur Minecraft",
+      bedrock: false,
+      statusChannelId: null,
+      statusMessageId: null,
+      rconEnabled: false,
+      rconPort: 25575,
+      rconPassword: null
     }
   };
 }

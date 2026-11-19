@@ -57,6 +57,7 @@ const translations = {
     "tabs.warns": "Sanctions Web",
     "tabs.audit": "Journal d'Audit",
     "tabs.words": "Mots Interdits",
+    "tabs.minecraft": "Minecraft & RCON",
     "tabs.settings": "Général",
 
     // Salons & Rôles
@@ -506,6 +507,7 @@ const translations = {
     "tabs.warns": "Web Moderation",
     "tabs.audit": "Audit Logs",
     "tabs.words": "Banned Words",
+    "tabs.minecraft": "Minecraft & RCON",
     "tabs.settings": "General",
 
     // Channels & Roles
@@ -955,6 +957,7 @@ const translations = {
     "tabs.warns": "Sanciones Web",
     "tabs.audit": "Registro de Auditoría",
     "tabs.words": "Palabras Prohibidas",
+    "tabs.minecraft": "Minecraft y RCON",
     "tabs.settings": "General",
 
     // Canales

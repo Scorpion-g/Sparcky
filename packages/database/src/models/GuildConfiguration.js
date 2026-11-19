@@ -217,6 +217,22 @@ const guildConfigSchema = new mongoose.Schema({
       default: []
     },
     lastQuestionDate: { type: String, default: null }
+  },
+
+  // --- Intégration Minecraft (Optionnelle par serveur) ---
+  minecraft: {
+    enabled: { type: Boolean, default: false },
+    ip: { type: String, default: null },
+    port: { type: Number, default: 25565 },
+    name: { type: String, default: "Serveur Minecraft" },
+    bedrock: { type: Boolean, default: false },
+    statusChannelId: { type: String, default: null },
+    statusMessageId: { type: String, default: null },
+
+    // Configuration RCON (Optionnelle & Sécurisée)
+    rconEnabled: { type: Boolean, default: false },
+    rconPort: { type: Number, default: 25575 },
+    rconPassword: { type: String, default: null } // Chiffré AES-256-GCM
   }
 });
 

@@ -140,6 +140,62 @@ module.exports = {
             .addChannelTypes(ChannelType.GuildVoice)
             .setRequired(false),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("minecraft")
+        .setDescription("Lier ou configurer le serveur Minecraft de cette communauté")
+        .setDescriptionLocalizations({
+          fr: "Lier ou configurer le serveur Minecraft de cette communauté",
+          "en-US": "Link or configure the Minecraft server for this community",
+          "es-ES": "Vincular o configurar el servidor de Minecraft de esta comunidad",
+        })
+        .addStringOption((opt) =>
+          opt
+            .setName("ip")
+            .setDescription("Adresse IP ou nom de domaine du serveur Minecraft")
+            .setDescriptionLocalizations({
+              fr: "Adresse IP ou nom de domaine du serveur Minecraft",
+              "en-US": "Minecraft server IP address or domain name",
+              "es-ES": "Dirección IP o nombre de dominio del servidor de Minecraft",
+            })
+            .setRequired(false),
+        )
+        .addIntegerOption((opt) =>
+          opt
+            .setName("port")
+            .setDescription("Port du serveur Minecraft (par défaut: 25565)")
+            .setDescriptionLocalizations({
+              fr: "Port du serveur Minecraft (par défaut: 25565)",
+              "en-US": "Minecraft server port (default: 25565)",
+              "es-ES": "Puerto del servidor de Minecraft (por defecto: 25565)",
+            })
+            .setMinValue(1)
+            .setMaxValue(65535)
+            .setRequired(false),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("nom")
+            .setDescription("Nom d'affichage du serveur (ex: Uchronie)")
+            .setDescriptionLocalizations({
+              fr: "Nom d'affichage du serveur (ex: Uchronie)",
+              "en-US": "Display name of the server (e.g. Survival, Uchronie)",
+              "es-ES": "Nombre para mostrar del servidor (ej. Uchronie)",
+            })
+            .setRequired(false),
+        )
+        .addBooleanOption((opt) =>
+          opt
+            .setName("actif")
+            .setDescription("Activer ou désactiver l'intégration Minecraft sur ce Discord")
+            .setDescriptionLocalizations({
+              fr: "Activer ou désactiver l'intégration Minecraft sur ce Discord",
+              "en-US": "Enable or disable Minecraft integration on this Discord",
+              "es-ES": "Habilitar o deshabilitar la integración de Minecraft en este Discord",
+            })
+            .setRequired(false),
+        ),
     ),
 
   async execute(interaction) {
@@ -168,6 +224,10 @@ module.exports = {
           : "❌ Désactivé";
         const langMap = { fr: "🇫🇷 Français", en: "🇬🇧 English", es: "🇪🇸 Español" };
         const lang = langMap[config.language] || config.language || "🇫🇷 Français";
+        const mcStatus =
+          config.minecraft?.enabled && config.minecraft?.ip
+            ? `✅ **${config.minecraft.name || "Minecraft"}** (\`${config.minecraft.ip}${config.minecraft.port && config.minecraft.port !== 25565 ? `:${config.minecraft.port}` : ""}\`)`
+            : "❌ Non configuré / Désactivé";
 
         const embed = createSparkyEmbed({
           title: "⚙️ Configuration Générale du Serveur",
@@ -181,6 +241,7 @@ module.exports = {
             { name: "🎭 Rôle Automatique (Auto-Role)", value: autorole, inline: true },
             { name: "🔊 Salons Vocaux Temporaires", value: tempvoice, inline: true },
             { name: "🌐 Langue du Bot", value: lang, inline: true },
+            { name: "⛏️ Serveur Minecraft", value: mcStatus, inline: true },
           ],
         });
 
@@ -257,6 +318,67 @@ module.exports = {
             ? `Le salon ${channel} est désormais le salon créateur de vocaux temporaires.`
             : "Le système de salons vocaux temporaires a été **désactivé**.",
           color: channel ? COLORS.SUCCESS : COLORS.WARNING,
+        });
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      }
+
+      if (subcommand === "minecraft") {
+        const ip = interaction.options.getString("ip");
+        const port = interaction.options.getInteger("port");
+        const name = interaction.options.getString("nom");
+        const actif = interaction.options.getBoolean("actif");
+
+        if (!config.minecraft) {
+          config.minecraft = {
+            enabled: false,
+            ip: null,
+            port: 25565,
+            name: "Serveur Minecraft",
+            bedrock: false,
+            statusChannelId: null,
+            statusMessageId: null,
+          };
+        }
+
+        // Si explicitement désactivé ou si aucune IP passée et aucune IP existante
+        if (actif === false || (!ip && actif === undefined && !config.minecraft.ip)) {
+          config.minecraft.enabled = false;
+          if (ip === null && actif === false) {
+            config.minecraft.ip = null;
+          }
+          await config.save();
+
+          const embed = createSparkyEmbed({
+            title: "⛏️ Intégration Minecraft Désactivée",
+            description: "L'intégration du serveur Minecraft a été **désactivée** pour ce serveur Discord.",
+            color: COLORS.WARNING,
+          });
+          return interaction.reply({ embeds: [embed], ephemeral: true });
+        }
+
+        if (ip) config.minecraft.ip = ip.trim();
+        if (port) config.minecraft.port = port;
+        if (name) config.minecraft.name = name.trim();
+        if (actif !== null && actif !== undefined) {
+          config.minecraft.enabled = actif;
+        } else if (config.minecraft.ip) {
+          config.minecraft.enabled = true;
+        }
+
+        await config.save();
+
+        const embed = createSparkyEmbed({
+          title: "⛏️ Serveur Minecraft Configuré avec Succès",
+          description:
+            `Les informations du serveur Minecraft ont été enregistrées pour votre serveur Discord !\n` +
+            `Vos membres peuvent désormais utiliser \`/mcstatus\` pour afficher son statut en direct.`,
+          color: COLORS.SUCCESS,
+          fields: [
+            { name: "Nom", value: config.minecraft.name || "Serveur Minecraft", inline: true },
+            { name: "Adresse IP", value: `\`${config.minecraft.ip}\``, inline: true },
+            { name: "Port", value: `\`${config.minecraft.port || 25565}\``, inline: true },
+            { name: "État", value: config.minecraft.enabled ? "🟢 Activé" : "🔴 Désactivé", inline: true },
+          ],
         });
         return interaction.reply({ embeds: [embed], ephemeral: true });
       }

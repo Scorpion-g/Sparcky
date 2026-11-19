@@ -12,6 +12,8 @@ export const {
   DailyStat,
   FormSubmission,
   defaultGuildConfig,
+  encrypt,
+  decrypt,
   CURRENT_VERSION,
   CHANGELOGS,
   getLatestChangelog,

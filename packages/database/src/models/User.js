@@ -32,6 +32,15 @@ const userSchema = new Schema({
   items: {
     type: [String],
     default: []
+  },
+  minecraftUsername: {
+    type: String,
+    default: null,
+    trim: true,
+  },
+  minecraftLinkedAt: {
+    type: Date,
+    default: null,
   }
 });
 

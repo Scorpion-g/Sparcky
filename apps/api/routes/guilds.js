@@ -3,6 +3,8 @@ import { authenticate } from "../middlewares/auth.js"
 import axios from "axios"
 import { getGuildConfig, setGuildConfig } from "../lib/guildConfigRepo.js"
 import { getDb } from "../lib/mongo.js"
+import { encrypt } from "@sparcky/database"
+import { executeRcon } from "../lib/rcon.js"
 
 const router = express.Router()
 
@@ -57,6 +59,16 @@ function sortChannels(a, b) {
   if (ta !== 4 && tb === 4) return 1
   if (a.position !== b.position) return a.position - b.position
   return String(a.name ?? "").localeCompare(String(b.name ?? ""))
+}
+
+function sanitizeConfigForClient(cfg) {
+  if (!cfg) return cfg
+  const copy = JSON.parse(JSON.stringify(cfg))
+  if (copy.minecraft) {
+    copy.minecraft.hasRconPassword = Boolean(copy.minecraft.rconPassword)
+    copy.minecraft.rconPassword = copy.minecraft.rconPassword ? "••••••••" : ""
+  }
+  return copy
 }
 
 router.get("/guilds/:guildId", authenticate, async (req, res) => {
@@ -160,7 +172,7 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
       },
       channels,
       roles,
-      config,
+      config: sanitizeConfigForClient(config),
       configSource: {
         db: db.databaseName,
         collection: collectionName,
@@ -190,7 +202,7 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
         },
         channels: [],
         roles: [],
-        config: await getGuildConfig(guildId),
+        config: sanitizeConfigForClient(await getGuildConfig(guildId)),
         error: "Bot is not in this guild (or missing permissions)"
       })
     }
@@ -202,7 +214,7 @@ router.get("/guilds/:guildId", authenticate, async (req, res) => {
 
 router.get("/guilds/:guildId/config", authenticate, async (req, res) => {
   const { guildId } = req.params
-  return res.json({ guildId, config: await getGuildConfig(guildId) })
+  return res.json({ guildId, config: sanitizeConfigForClient(await getGuildConfig(guildId)) })
 })
 
 router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
@@ -222,6 +234,35 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
       : undefined
 
   const cleanChannel = val => (typeof val === "string" && val.trim().length > 0 ? val.trim() : null)
+
+  let cleanMinecraft = undefined
+  if (patch.minecraft && typeof patch.minecraft === "object") {
+    const current = await getGuildConfig(guildId)
+    const existingMc = current?.minecraft || {}
+
+    let rconPassword = existingMc.rconPassword || null
+    if (typeof patch.minecraft.rconPassword === "string") {
+      const trimmed = patch.minecraft.rconPassword.trim()
+      if (trimmed && trimmed !== "••••••••") {
+        rconPassword = encrypt(trimmed)
+      } else if (!trimmed) {
+        rconPassword = null
+      }
+    }
+
+    cleanMinecraft = {
+      enabled: typeof patch.minecraft.enabled === "boolean" ? patch.minecraft.enabled : existingMc.enabled ?? false,
+      ip: typeof patch.minecraft.ip === "string" ? patch.minecraft.ip.trim().slice(0, 128) : (patch.minecraft.ip === null ? null : existingMc.ip ?? null),
+      port: typeof patch.minecraft.port === "number" ? Math.max(1, Math.min(65535, Math.floor(patch.minecraft.port))) : existingMc.port ?? 25565,
+      name: typeof patch.minecraft.name === "string" ? patch.minecraft.name.trim().slice(0, 64) : existingMc.name ?? "Serveur Minecraft",
+      bedrock: typeof patch.minecraft.bedrock === "boolean" ? patch.minecraft.bedrock : existingMc.bedrock ?? false,
+      rconEnabled: typeof patch.minecraft.rconEnabled === "boolean" ? patch.minecraft.rconEnabled : existingMc.rconEnabled ?? false,
+      rconPort: typeof patch.minecraft.rconPort === "number" ? Math.max(1, Math.min(65535, Math.floor(patch.minecraft.rconPort))) : existingMc.rconPort ?? 25575,
+      rconPassword,
+      statusChannelId: cleanChannel(patch.minecraft.statusChannelId) ?? existingMc.statusChannelId ?? null,
+      statusMessageId: cleanChannel(patch.minecraft.statusMessageId) ?? existingMc.statusMessageId ?? null
+    }
+  }
 
   // Whitelist
   const next = await setGuildConfig(guildId, {
@@ -308,6 +349,9 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
       })).filter(q => q.question && q.answers.length > 0) : [],
       lastQuestionDate: typeof patch.trivia.lastQuestionDate === "string" ? patch.trivia.lastQuestionDate : undefined
     } : undefined,
+
+    // Intégration Minecraft & RCON
+    minecraft: cleanMinecraft
   })
 
   // Synchroniser également dans la collection ticketsettings pour le bot Discord
@@ -331,7 +375,126 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     )
   }
 
-  return res.json({ guildId, config: next })
+  return res.json({ guildId, config: sanitizeConfigForClient(next) })
+})
+
+// --- Endpoints Dédiés Minecraft & RCON ---
+
+function cleanHostAndPort(rawHost, rawPort = 25565) {
+  if (!rawHost) return { host: "", port: rawPort }
+  let cleaned = String(rawHost).trim().replace(/^https?:\/\//i, "")
+  cleaned = cleaned.split("/")[0]
+  let port = Number(rawPort) || 25565
+  if (cleaned.includes(":")) {
+    const parts = cleaned.split(":")
+    cleaned = parts[0].trim()
+    const parsed = parseInt(parts[1], 10)
+    if (!isNaN(parsed) && parsed > 0) port = parsed
+  }
+  return { host: cleaned, port }
+}
+
+router.post("/guilds/:guildId/minecraft/test", async (req, res) => {
+  try {
+    const { ip, port, bedrock } = req.body || {}
+    const config = await getGuildConfig(req.params.guildId)
+    const rawIp = (ip || config?.minecraft?.ip || "").trim()
+    const rawPort = port || config?.minecraft?.port || 25565
+    const isBedrock = typeof bedrock === "boolean" ? bedrock : Boolean(config?.minecraft?.bedrock)
+
+    const { host: targetIp, port: targetPort } = cleanHostAndPort(rawIp, rawPort)
+
+    console.log(`[minecraft/test] Ping test pour ${req.params.guildId} -> ${targetIp}:${targetPort} (Bedrock: ${isBedrock})`)
+
+    if (!targetIp) {
+      return res.status(400).json({ error: "Aucune adresse IP spécifiée" })
+    }
+
+    const util = await import("minecraft-server-util")
+    const statusFn = isBedrock ? util.statusBedrock : util.status
+    const result = await statusFn(targetIp, targetPort, { timeout: 5000, enableSRV: true })
+
+    return res.json({
+      online: true,
+      players: {
+        online: result.players?.online ?? 0,
+        max: result.players?.max ?? 0,
+        sample: result.players?.sample ?? []
+      },
+      version: result.version?.name || "Inconnue",
+      motd: result.motd?.clean ? result.motd.clean.trim() : "",
+      latency: result.roundTripLatency ?? 0
+    })
+  } catch (err) {
+    console.warn(`[minecraft/test] Échec du ping:`, err.message)
+    let errMsg = err.message || "Serveur injoignable ou hors ligne"
+    if (!isBedrock && targetPort === 19132) {
+      errMsg = "Port 19132 détecté pour Java : le port standard de Java est 25565 (19132 est réservé à Bedrock)."
+    } else if (isBedrock && targetPort === 25565) {
+      errMsg = "Port 25565 détecté pour Bedrock : le port standard de Bedrock est 19132 (25565 est réservé à Java)."
+    }
+    return res.status(200).json({
+      online: false,
+      error: errMsg
+    })
+  }
+})
+
+router.post("/guilds/:guildId/minecraft/test-rcon", authenticate, async (req, res) => {
+  try {
+    const { ip, rconPort, rconPassword } = req.body || {}
+    const config = await getGuildConfig(req.params.guildId)
+
+    const rawIp = (ip || config?.minecraft?.ip || "").trim()
+    const rawPort = rconPort || config?.minecraft?.rconPort || 25575
+    const { host: targetIp, port: targetPort } = cleanHostAndPort(rawIp, rawPort)
+
+    let targetPassword = rconPassword
+    if (!targetPassword || targetPassword === "••••••••") {
+      targetPassword = config?.minecraft?.rconPassword
+    }
+
+    if (!targetIp) return res.status(400).json({ error: "Adresse IP manquante" })
+    if (!targetPassword) return res.status(400).json({ error: "Mot de passe RCON manquant" })
+
+    const output = await executeRcon({
+      host: targetIp,
+      port: targetPort,
+      password: targetPassword,
+      command: "list",
+      timeout: 5000
+    })
+
+    return res.json({ success: true, message: "Connexion RCON établie avec succès !", output })
+  } catch (err) {
+    return res.status(200).json({ success: false, error: err.message || "Échec connexion RCON" })
+  }
+})
+
+router.post("/guilds/:guildId/minecraft/rcon-exec", authenticate, async (req, res) => {
+  try {
+    const { command } = req.body || {}
+    if (!command || typeof command !== "string" || !command.trim()) {
+      return res.status(400).json({ error: "Commande manquante" })
+    }
+
+    const config = await getGuildConfig(req.params.guildId)
+    if (!config?.minecraft?.rconEnabled || !config?.minecraft?.rconPassword) {
+      return res.status(400).json({ error: "RCON n'est pas activé ou configuré pour ce serveur" })
+    }
+
+    const output = await executeRcon({
+      host: config.minecraft.ip,
+      port: config.minecraft.rconPort || 25575,
+      password: config.minecraft.rconPassword,
+      command: command.trim().replace(/^\//, ""),
+      timeout: 5000
+    })
+
+    return res.json({ success: true, output })
+  } catch (err) {
+    return res.status(502).json({ success: false, error: err.message || "Erreur d'exécution RCON" })
+  }
 })
 
 export default router

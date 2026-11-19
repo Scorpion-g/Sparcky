@@ -69,7 +69,9 @@ router.get("/guilds/:guildId/economy", authenticate, async (req, res) => {
           avatarUrl: profile.avatarUrl,
           balance: u.balance || 0,
           itemsCount: Array.isArray(u.items) ? u.items.length : 0,
-          lastDaily: u.lastDaily || null
+          lastDaily: u.lastDaily || null,
+          minecraftUsername: u.minecraftUsername || null,
+          minecraftLinkedAt: u.minecraftLinkedAt || null
         }
       })
     )
@@ -161,8 +163,15 @@ router.get("/guilds/:guildId/shop", authenticate, async (req, res) => {
 
 // Ajouter un article à la boutique
 router.post("/guilds/:guildId/shop", authenticate, async (req, res) => {
-  const { guildId } = req.params
-  const { name, description = "", price, stock = -1, type = "item", roleId = null } = req.body || {}
+  const {
+    name,
+    description = "",
+    price,
+    stock = -1,
+    type = "item",
+    roleId = null,
+    minecraftCommand = null,
+  } = req.body || {}
 
   if (!name || typeof price !== "number") {
     return res.status(400).json({ error: "Nom et prix obligatoires" })
@@ -184,8 +193,12 @@ router.post("/guilds/:guildId/shop", authenticate, async (req, res) => {
       description: String(description).trim(),
       price: Math.max(0, Math.floor(price)),
       stock: typeof stock === "number" ? stock : -1,
-      type: ["role", "item", "other"].includes(type) ? type : "item",
+      type: ["role", "item", "minecraft", "other"].includes(type) ? type : "item",
       roleId: type === "role" && roleId ? String(roleId) : null,
+      minecraftCommand:
+        type === "minecraft" && minecraftCommand
+          ? String(minecraftCommand).trim()
+          : null,
       createdAt: new Date(),
       updatedAt: new Date()
     }
@@ -201,7 +214,7 @@ router.post("/guilds/:guildId/shop", authenticate, async (req, res) => {
 // Modifier un article de la boutique
 router.put("/guilds/:guildId/shop/:itemId", authenticate, async (req, res) => {
   const { guildId, itemId } = req.params
-  const { name, description, price, stock, type, roleId } = req.body || {}
+  const { name, description, price, stock, type, roleId, minecraftCommand } = req.body || {}
 
   try {
     const db = await getDb()
@@ -217,8 +230,11 @@ router.put("/guilds/:guildId/shop/:itemId", authenticate, async (req, res) => {
     if (description !== undefined) updates.description = String(description).trim()
     if (typeof price === "number") updates.price = Math.max(0, Math.floor(price))
     if (typeof stock === "number") updates.stock = stock
-    if (type && ["role", "item", "other"].includes(type)) updates.type = type
+    if (type && ["role", "item", "minecraft", "other"].includes(type)) updates.type = type
     if (roleId !== undefined) updates.roleId = roleId || null
+    if (minecraftCommand !== undefined) {
+      updates.minecraftCommand = minecraftCommand ? String(minecraftCommand).trim() : null
+    }
 
     await shopCol.updateOne({ guildId, itemId }, { $set: updates })
     return res.json({ success: true, item: { ...existing, ...updates } })

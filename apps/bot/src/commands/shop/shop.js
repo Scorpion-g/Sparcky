@@ -7,6 +7,7 @@ const { v4: uuid } = require("uuid");
 const ShopItem = require("../../models/Shop");
 const User = require("../../models/User");
 const GuildConfiguration = require("../../models/GuildConfiguration");
+const { executeRcon } = require("../../utils/rcon");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -105,11 +106,29 @@ module.exports = {
                 value: "item",
               },
               {
+                name: "Minecraft (RCON)",
+                name_localizations: {
+                  fr: "Minecraft (RCON)",
+                  "en-US": "Minecraft (RCON)",
+                },
+                value: "minecraft",
+              },
+              {
                 name: "Autre",
                 name_localizations: { fr: "Autre", "en-US": "Other" },
                 value: "other",
               },
             ),
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("command")
+            .setDescription("Commande RCON pour Minecraft (ex: give {player} diamond 5)")
+            .setDescriptionLocalizations({
+              fr: "Commande RCON pour Minecraft (ex: give {player} diamond 5)",
+              "en-US": "RCON command for Minecraft (ex: give {player} diamond 5)",
+            })
+            .setRequired(false),
         )
         .addIntegerOption((opt) =>
           opt
@@ -196,20 +215,27 @@ module.exports = {
         });
       } else {
         for (const item of items) {
+          const typeBadge =
+            item.type === "minecraft"
+              ? "⛏️ Minecraft"
+              : item.type === "role"
+                ? "🎭 Rôle"
+                : item.type === "item"
+                  ? "📦 Objet"
+                  : item.type;
+
+          const extraCmd =
+            item.type === "minecraft" && item.minecraftCommand
+              ? `\nCommande: \`${item.minecraftCommand}\``
+              : "";
+
           embed.addFields({
-            name: await interaction.t("SHOP.INFO.ITEM.TITLE", {
-              name: item.name,
-              price: item.price,
-              type: item.type,
-            }),
-            value: await interaction.t("SHOP.INFO.ITEM.VALUE", {
-              description: item.description,
-              stock: item.stock,
-              stockLabel:
-                item.stock === -1
-                  ? await interaction.t("SHOP.STOCK.UNLIMITED")
-                  : `${item.stock}`,
-            }),
+            name: `${item.name} - ${item.price} crédits (${typeBadge})`,
+            value: `${item.description}\nStock: ${
+              item.stock === -1
+                ? await interaction.t("SHOP.STOCK.UNLIMITED")
+                : item.stock
+            }${extraCmd}`,
           });
         }
       }
@@ -238,6 +264,101 @@ module.exports = {
           content: await interaction.t("SHOP.ERRORS.INSUFFICIENT_FUNDS"),
         });
 
+      // --- Logique d'achat Minecraft (RCON) ---
+      if (shopItem.type === "minecraft") {
+        if (!user.minecraftUsername) {
+          return interaction.editReply({
+            content:
+              "❌ **Compte Minecraft non lié !**\nVous devez d'abord associer votre pseudo Minecraft avec `/link-mc set pseudo:<votre_pseudo>` avant d'acheter cet article.",
+          });
+        }
+
+        if (!/^[a-zA-Z0-9_.]{3,16}$/.test(user.minecraftUsername)) {
+          return interaction.editReply({
+            content: "❌ Votre pseudo Minecraft lié contient des caractères invalides.",
+          });
+        }
+
+        if (
+          !guildConfig.minecraft?.rconEnabled ||
+          !guildConfig.minecraft?.ip ||
+          !guildConfig.minecraft?.rconPassword
+        ) {
+          return interaction.editReply({
+            content:
+              "❌ L'intégration RCON Minecraft n'est pas activée ou configurée sur ce serveur Discord. Contactez un administrateur.",
+          });
+        }
+
+        const templateCmd = shopItem.minecraftCommand || "give {player} diamond 1";
+        const finalCmd = templateCmd.replace(/\{player\}/gi, user.minecraftUsername);
+
+        let rconResponse = "";
+        try {
+          rconResponse = await executeRcon({
+            host: guildConfig.minecraft.ip,
+            port: guildConfig.minecraft.rconPort || 25575,
+            password: guildConfig.minecraft.rconPassword,
+            command: finalCmd,
+            timeout: 5000,
+          });
+
+          // Vérifier si la console Minecraft renvoie un message d'erreur de syntaxe ou de joueur introuvable
+          const isErrorResponse =
+            /(malformed|unknown command|unknown item|no player was found|player.*not found|incorrect argument|expected|<--\[HERE\])/i.test(
+              rconResponse,
+            );
+
+          if (isErrorResponse) {
+            throw new Error(rconResponse);
+          }
+        } catch (rconErr) {
+          return interaction.editReply({
+            content: `❌ **Échec de l'envoi sur Minecraft !**\nLe serveur a répondu : \`${rconErr.message}\`.\n\n*Note : Assurez-vous d'être connecté en jeu si la commande cible votre joueur.* **Aucun crédit n'a été débité.**`,
+          });
+        }
+
+        // Transaction : déduction des crédits et enregistrement
+        user.balance -= shopItem.price;
+        user.items.push(shopItem.name);
+        if (shopItem.stock > 0) shopItem.stock -= 1;
+
+        await user.save();
+        await shopItem.save();
+
+        // Notification discrète en jeu
+        try {
+          await executeRcon({
+            host: guildConfig.minecraft.ip,
+            port: guildConfig.minecraft.rconPort || 25575,
+            password: guildConfig.minecraft.rconPassword,
+            command: `tellraw ${user.minecraftUsername} [{"text":"[Sparcky Boutique] ","color":"gold","bold":true},{"text":"Merci pour votre achat : ${shopItem.name} !","color":"green"}]`,
+            timeout: 2000,
+          });
+        } catch {
+          // Ignorer si échec annonce
+        }
+
+        const successEmbed = new EmbedBuilder()
+          .setTitle("⛏️ Achat Minecraft Réussi !")
+          .setColor("#22c55e")
+          .setThumbnail(`https://mc-heads.net/avatar/${encodeURIComponent(user.minecraftUsername)}/128.png`)
+          .setDescription(
+            `Vous avez acheté **${shopItem.name}** pour **${shopItem.price}** crédits !\nLa récompense a été envoyée au joueur **${user.minecraftUsername}** sur le serveur Minecraft.`
+          )
+          .addFields(
+            { name: "Joueur Minecraft", value: `\`${user.minecraftUsername}\``, inline: true },
+            { name: "Nouveau solde", value: `${user.balance} crédits`, inline: true },
+            { name: "Commande exécutée", value: `\`${finalCmd}\``, inline: false },
+            { name: "Réponse serveur", value: `\`${(rconResponse || "OK").slice(0, 150)}\``, inline: false },
+          )
+          .setFooter({ text: "Sparcky Minecraft Integration" })
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [successEmbed] });
+      }
+
+      // --- Logique d'achat standard (rôles, objets, etc.) ---
       user.balance -= shopItem.price;
       user.items.push(shopItem.name);
       if (shopItem.stock > 0) shopItem.stock -= 1;
@@ -284,6 +405,7 @@ module.exports = {
       const description = interaction.options.getString("description");
       const stock = interaction.options.getInteger("stock") ?? -1;
       const type = interaction.options.getString("type");
+      const command = interaction.options.getString("command");
 
       const newShopItem = new ShopItem({
         itemId: uuid(),
@@ -293,6 +415,10 @@ module.exports = {
         description,
         stock,
         type,
+        minecraftCommand:
+          type === "minecraft"
+            ? (command?.trim() || "give {player} diamond 1")
+            : null,
       });
 
       await newShopItem.save();

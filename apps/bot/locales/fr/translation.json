@@ -366,7 +366,10 @@
       "OUT_OF_STOCK": "❌ Article en rupture.",
       "INSUFFICIENT_FUNDS": "❌ Solde insuffisant.",
       "NO_PERMISSION_ADD": "❌ Vous n'avez pas la permission d'ajouter des articles.",
-      "NO_PERMISSION_REMOVE": "❌ Vous n'avez pas la permission de supprimer des articles."
+      "NO_PERMISSION_REMOVE": "❌ Vous n'avez pas la permission de supprimer des articles.",
+      "MC_NOT_LINKED": "❌ Vous devez d'abord associer votre compte Minecraft avec /link-mc set pseudo:<votre_pseudo>.",
+      "MC_RCON_DISABLED": "❌ L'intégration Minecraft RCON n'est pas activée sur ce serveur Discord.",
+      "MC_EXECUTION_FAILED": "❌ Échec de la commande sur le serveur Minecraft: {{error}}"
     }
   },
   "AUTOMOD_CONFIG": {

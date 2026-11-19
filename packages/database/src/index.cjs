@@ -9,6 +9,7 @@ const Warn = require("./models/Warn");
 const DailyStat = require("./models/DailyStat");
 const FormSubmission = require("./models/FormSubmission");
 const { defaultGuildConfig } = require("./defaults");
+const { encrypt, decrypt } = require("./crypto");
 const {
   CURRENT_VERSION,
   CHANGELOGS,
@@ -31,6 +32,8 @@ module.exports = {
   DailyStat,
   FormSubmission,
   defaultGuildConfig,
+  encrypt,
+  decrypt,
   CURRENT_VERSION,
   CHANGELOGS,
   getLatestChangelog,
