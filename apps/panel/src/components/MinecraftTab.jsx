@@ -6,7 +6,8 @@ export default function MinecraftTab({
   guildId,
   token,
   apiBaseUrl,
-  textChannels = []
+  textChannels = [],
+  roles = []
 }) {
   const mc = config?.minecraft || {
     enabled: false,
@@ -17,7 +18,9 @@ export default function MinecraftTab({
     statusChannelId: null,
     rconEnabled: false,
     rconPort: 25575,
-    rconPassword: ""
+    rconPassword: "",
+    roleSync: [],
+    boostReward: { enabled: false, command: "", message: "" }
   }
 
   // États pour les tests en direct
@@ -33,6 +36,30 @@ export default function MinecraftTab({
   const [consoleHistory, setConsoleHistory] = useState([
     { type: "system", text: "Console RCON prête. Tapez une commande Minecraft (ex: list, say Bonjour, whitelist list)." }
   ])
+
+  // États pour la synchronisation de rôles
+  const [newRoleSyncId, setNewRoleSyncId] = useState("")
+  const [newRoleSyncGroup, setNewRoleSyncGroup] = useState("")
+
+  function handleAddRoleSync() {
+    if (!newRoleSyncId || !newRoleSyncGroup.trim()) return
+    const currentList = Array.isArray(mc.roleSync) ? mc.roleSync : []
+    const updated = [...currentList, { roleId: newRoleSyncId, groupName: newRoleSyncGroup.trim() }]
+    updateMinecraftField("roleSync", updated)
+    setNewRoleSyncId("")
+    setNewRoleSyncGroup("")
+  }
+
+  function handleRemoveRoleSync(index) {
+    const currentList = Array.isArray(mc.roleSync) ? mc.roleSync : []
+    const updated = currentList.filter((_, i) => i !== index)
+    updateMinecraftField("roleSync", updated)
+  }
+
+  const boost = mc.boostReward || { enabled: false, command: "", message: "" }
+  function updateBoostReward(key, value) {
+    updateMinecraftField("boostReward", { ...boost, [key]: value })
+  }
 
   // Test de ping public (Server List Ping)
   async function handleTestPing() {
@@ -506,6 +533,134 @@ export default function MinecraftTab({
                   {rconExecuting ? "Envoi..." : "Envoyer"}
                 </button>
               </form>
+            </div>
+
+            {/* Section 4 : Synchronisation des Rôles Discord vers Grades Minecraft (LuckPerms) */}
+            <div className="border-t border-white/10 pt-6 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>🔄</span> Synchronisation des Rôles Discord ➔ Grades Minecraft (LuckPerms)
+                </h4>
+                <p className="mt-1 text-xs text-slate-400">
+                  Attribue ou retire automatiquement les grades in-game via RCON dès qu'un joueur lié reçoit ou perd un rôle Discord.
+                </p>
+              </div>
+
+              {/* Formulaire d'ajout de mapping */}
+              <div className="grid gap-3 sm:grid-cols-3 rounded-2xl border border-white/5 bg-slate-950/40 p-3.5">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Rôle Discord</label>
+                  <select
+                    value={newRoleSyncId}
+                    onChange={e => setNewRoleSyncId(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                  >
+                    <option value="">Sélectionner un rôle...</option>
+                    {roles.map(r => (
+                      <option key={r.id} value={r.id}>@{r.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-400">Nom du groupe LuckPerms</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: vip, moderateur, elite"
+                    value={newRoleSyncGroup}
+                    onChange={e => setNewRoleSyncGroup(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={handleAddRoleSync}
+                    disabled={!newRoleSyncId || !newRoleSyncGroup.trim()}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                  >
+                    + Lier le grade
+                  </button>
+                </div>
+              </div>
+
+              {/* Liste des synchronisations actives */}
+              {Array.isArray(mc.roleSync) && mc.roleSync.length > 0 ? (
+                <div className="space-y-2">
+                  {mc.roleSync.map((sync, idx) => {
+                    const rName = roles.find(r => r.id === sync.roleId)?.name || sync.roleId
+                    return (
+                      <div key={idx} className="flex items-center justify-between rounded-xl border border-white/5 bg-slate-950/60 px-4 py-2.5 text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="rounded-lg bg-indigo-500/20 px-2 py-1 font-semibold text-indigo-300">@{rName}</span>
+                          <span className="text-slate-500">➔</span>
+                          <span className="font-mono text-emerald-400 font-bold">{sync.groupName}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRoleSync(idx)}
+                          className="text-rose-400 hover:text-rose-300 text-xs px-2 py-1"
+                        >
+                          ✕ Supprimer
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">Aucune synchronisation configurée. Ajoutez un rôle Discord et son groupe Minecraft ci-dessus.</p>
+              )}
+            </div>
+
+            {/* Section 5 : Récompenses de Boost Discord In-Game */}
+            <div className="border-t border-white/10 pt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>⚡</span> Récompense In-Game pour Boosters Nitro Discord
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Exécute automatiquement une commande RCON lorsqu'un membre booste le serveur Discord (si son compte est lié).
+                  </p>
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(boost.enabled)}
+                    onChange={e => updateBoostReward("enabled", e.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-slate-800 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-focus:outline-none" />
+                </label>
+              </div>
+
+              {boost.enabled && (
+                <div className="grid gap-3 sm:grid-cols-2 rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Commande RCON exécutée</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: give {player} diamond 10"
+                      value={boost.command || ""}
+                      onChange={e => updateBoostReward("command", e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs font-mono text-white outline-none focus:border-indigo-500"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">Utilisez <code className="text-amber-400">{"{player}"}</code> pour le pseudo du booster.</p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-300">Message de remerciement</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 🎉 Merci pour ton Boost {player} ! Voici tes 10 diamants !"
+                      value={boost.message || ""}
+                      onChange={e => updateBoostReward("message", e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

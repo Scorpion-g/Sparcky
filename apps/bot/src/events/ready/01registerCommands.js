@@ -18,8 +18,6 @@ module.exports = {
         }
       }
 
-      const isDev = process.env.NODE_ENV !== "production" || process.env.DEV_MODE === "true";
-
       // Fonction générique de synchro
       async function syncCommands(applicationCommands, scope = "global") {
         if (!applicationCommands) return;
@@ -95,22 +93,26 @@ module.exports = {
         }
       }
 
-      // Synchro serveur test (instantané pour le développement)
-      if (testServer) {
+      // Synchro serveurs prioritaires (commandes de guilde actives immédiatement sans délai de cache)
+      const rawGuilds = process.env.GUILD_IDS || process.env.GUILD_ID || "";
+      const targetGuilds = rawGuilds.split(",").map(id => id.trim()).filter(Boolean);
+
+      for (const guildId of targetGuilds) {
         try {
-          const guildCommands = await getApplicationCommands(client, testServer);
-          await syncCommands(guildCommands, "guild");
+          const guildCommands = await getApplicationCommands(client, guildId);
+          await syncCommands(guildCommands, `guild:${guildId}`);
         } catch (guildErr) {
-          logger.warn(`Impossible de synchroniser les commandes du serveur test (${testServer}): ${guildErr.message}`);
+          logger.warn(`Impossible de synchroniser les commandes du serveur (${guildId}): ${guildErr.message}`);
         }
       }
 
       // Synchro globales (en prod ou si explicitement demandé)
+      const isDev = (process.env.NODE_ENV === "development" || process.env.DEV_MODE === "true") && process.env.SYNC_GLOBAL !== "true";
       if (!isDev || process.env.SYNC_GLOBAL === "true") {
         const globalCommands = await getApplicationCommands(client);
         await syncCommands(globalCommands, "global");
       } else {
-        logger.info("ℹ️ Mode dev actif : synchronisation globale ignorée (commandes actives immédiatement sur le serveur test).");
+        logger.info("ℹ️ Mode dev actif : synchronisation globale ignorée (commandes actives immédiatement sur les serveurs cibles).");
       }
 
       logger.info("✅ Synchronisation des commandes terminée.");

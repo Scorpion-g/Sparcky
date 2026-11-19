@@ -2098,6 +2098,64 @@ export default function GuildPage() {
                       </div>
                     </div>
 
+                    {/* Compteurs Vocaux Statistiques en Temps Réel */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                            <span>📊</span> Compteurs Vocaux en Direct (Voice Counters)
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-400">
+                            Affichez le nombre de membres Discord et de joueurs Minecraft connectés en temps réel dans le nom de salons vocaux dédiés.
+                          </p>
+                        </div>
+                        <label className="relative inline-flex cursor-pointer items-center">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(config?.voiceCounters?.enabled)}
+                            onChange={(e) =>
+                              updateField("voiceCounters", {
+                                ...(config?.voiceCounters || {}),
+                                enabled: e.target.checked
+                              })
+                            }
+                            className="peer sr-only"
+                          />
+                          <div className="peer h-6 w-11 rounded-full bg-slate-800 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-emerald-500 peer-checked:after:translate-x-full peer-focus:outline-none" />
+                        </label>
+                      </div>
+
+                      {config?.voiceCounters?.enabled && (
+                        <div className="mt-6 grid gap-4 md:grid-cols-2 border-t border-white/5 pt-6">
+                          <SelectField
+                            label="Salon Vocal : Total Membres Discord"
+                            description="Le nom du salon sera automatiquement synchronisé (ex: 👥・Membres : 150)."
+                            value={config?.voiceCounters?.memberChannelId}
+                            onChange={(val) =>
+                              updateField("voiceCounters", {
+                                ...(config?.voiceCounters || {}),
+                                memberChannelId: val
+                              })
+                            }
+                            options={[{ id: "", name: "Désactivé" }, ...voiceChannels]}
+                          />
+
+                          <SelectField
+                            label="Salon Vocal : Joueurs Minecraft en Ligne"
+                            description="Le nom du salon sera synchronisé avec le serveur Minecraft (ex: ⛏️・Minecraft : 12/50)."
+                            value={config?.voiceCounters?.mcChannelId}
+                            onChange={(val) =>
+                              updateField("voiceCounters", {
+                                ...(config?.voiceCounters || {}),
+                                mcChannelId: val
+                              })
+                            }
+                            options={[{ id: "", name: "Désactivé" }, ...voiceChannels]}
+                          />
+                        </div>
+                      )}
+                    </div>
+
                     {/* Personnalisation du Message de Bienvenue */}
                     <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
                       <div className="flex items-center justify-between">
@@ -4248,6 +4306,49 @@ export default function GuildPage() {
                           </div>
                         )}
                       </div>
+
+                      {/* Loterie Hebdomadaire Communautaire */}
+                      <div className="mt-6 pt-6 border-t border-white/5 space-y-4">
+                        <Toggle
+                          label="🎰 Loterie Hebdomadaire (/loterie)"
+                          description="Permet aux membres d'acheter des tickets pour le jackpot hebdomadaire (tirage automatique chaque dimanche à 20h)."
+                          checked={config?.lottery?.enabled !== false}
+                          onChange={v => updateField("lottery", { ...(config?.lottery || {}), enabled: v })}
+                        />
+
+                        {config?.lottery?.enabled !== false && (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                              <label className="text-xs font-semibold text-slate-300">
+                                🎟️ Prix d'un ticket de loterie
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                value={config?.lottery?.ticketPrice ?? 50}
+                                onChange={e => updateField("lottery", { ...(config?.lottery || {}), ticketPrice: Math.max(1, Number(e.target.value)) })}
+                                className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                              <label className="text-xs font-semibold text-slate-300">
+                                📢 Salon d'annonce des tirages
+                              </label>
+                              <select
+                                value={config?.lottery?.channelId || ""}
+                                onChange={e => updateField("lottery", { ...(config?.lottery || {}), channelId: e.target.value || null })}
+                                className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              >
+                                <option value="">Par défaut (Général / Annonces)</option>
+                                {textChannels.map(ch => (
+                                  <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Gestionnaire de Boutique (Shop Manager) */}
@@ -6052,6 +6153,7 @@ export default function GuildPage() {
                     token={token}
                     apiBaseUrl={API_BASE_URL}
                     textChannels={textChannels}
+                    roles={roles}
                   />
                 )}
 

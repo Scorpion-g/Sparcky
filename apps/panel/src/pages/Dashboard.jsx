@@ -21,46 +21,46 @@ export default function Dashboard() {
 
   // Modèle d'annonce modifiable par l'Owner
   const [announcement, setAnnouncement] = useState({
-    version: "2.3.4",
-    title: "Sparcky v2 : La Grande Évolution (Refonte Majeure depuis la v1)",
-    summary: "Après des semaines de développement, Sparcky passe un cap historique ! Fini les commandes dispersées et les réglages fastidieux : découvrez une refonte totale de l'architecture, un nouveau dashboard web avec mode démo, une sécurité renforcée et une ergonomie repensée pour vos communautés.",
+    version: "2.6.0",
+    title: "Sparcky v2.6.0 : Quêtes Journalières, Loterie, Duels, Réputation & Synergie Minecraft",
+    summary: "Mise à jour majeure d'engagement et d'interconnexion : Quêtes quotidiennes avec bonus Grand Chelem, Loterie communautaire avec jackpot progressif, Duels PvP entre membres avec mises, Système de réputation bienveillant (/rep), Salons vocaux statistiques en temps réel, Synchronisation automatique Rôles Discord vers Grades Minecraft LuckPerms et Récompenses de Boost & Niveaux in-game via RCON.",
     demoUrl: "https://sparcky.matteoriviere.fr/demo",
-    githubUrl: "https://github.com/Scorpion-g/Sparcky/releases/tag/v2.3.4",
+    githubUrl: "https://github.com/Scorpion-g/Sparcky/releases/tag/v2.6.0",
     highlights: [
       {
-        emoji: "🛡️",
-        title: "Sécurité & Sanctions (/security)",
-        desc: "Anti-raid, anti-spam, anti-lien, filtre de mots interdits intelligent et sanctions automatiques progressives (warns, timeout, kick, ban).",
+        emoji: "📜",
+        title: "Quêtes Journalières (/quests)",
+        desc: "3 défis quotidiens renouvelés à minuit avec barre de progression et bonus +50% Grand Chelem.",
         inline: true
       },
       {
-        emoji: "⚙️",
-        title: "Hubs Unifiés & Menu /help",
-        desc: "Centralisation totale avec /setup (bienvenue, autoroles, vocaux) et menu déroulant interactif par catégories sur /help.",
+        emoji: "🎰",
+        title: "Loterie Communautaire (/loterie)",
+        desc: "Achat de tickets pour gonfler le jackpot, tirage au sort hebdomadaire automatique le dimanche à 20h.",
         inline: true
       },
       {
-        emoji: "🌐",
-        title: "Nouveau Dashboard & Démo Web",
-        desc: "Panel web complet (sparcky.matteoriviere.fr) traduit en 3 langues (FR/EN/ES) et mode Sandbox Démo accessible sans connexion.",
+        emoji: "⚔️",
+        title: "Duels PvP (/duel)",
+        desc: "Défiez un membre sur un jet de dés ou un chifumi avec mise de pièces en jeu et taxe casino régulatrice.",
         inline: true
       },
       {
-        emoji: "📢",
-        title: "Constructeur d'Embeds Visuels",
-        desc: "Créez des annonces sur mesure avec prévisualisation Discord en direct, jusqu'à 25 champs (fields) et options inline.",
+        emoji: "🌟",
+        title: "Système de Réputation (/rep)",
+        desc: "Remerciez les membres serviables une fois par jour et hissez-vous au classement /leaderboard rep.",
         inline: true
       },
       {
-        emoji: "🎵",
-        title: "Blind Test & Giveaways",
-        desc: "Blind Test Deezer avec tolérance des fautes (Levenshtein), durées personnalisées et système complet de tirages au sort.",
+        emoji: "📊",
+        title: "Voice Counters (/setup counters)",
+        desc: "Salons vocaux statistiques mis à jour automatiquement (Membres Discord & Joueurs en jeu Minecraft).",
         inline: true
       },
       {
-        emoji: "🧹",
-        title: "Nettoyage Avancé (/clear)",
-        desc: "Purge intelligente et rapide des messages avec filtres par membre, messages de bots ou liens publicitaires.",
+        emoji: "⛏️",
+        title: "Synergie Minecraft & LuckPerms",
+        desc: "Synchronisation instantanée des rôles vers les grades Minecraft, récompense in-game de Boost et paliers de niveaux.",
         inline: true
       }
     ]
@@ -143,6 +143,26 @@ export default function Dashboard() {
 
         setData(payload)
         setStatus("ready")
+
+        // Récupération dynamique du dernier changelog / version
+        try {
+          const vRes = await fetch("/api/version")
+          if (vRes.ok) {
+            const vData = await vRes.json()
+            if (vData?.changelog) {
+              setAnnouncement(prev => ({
+                ...prev,
+                version: vData.version || prev.version,
+                title: vData.changelog.title || prev.title,
+                summary: vData.changelog.summary || prev.summary,
+                githubUrl: vData.githubUrl || prev.githubUrl,
+                highlights: vData.changelog.highlights?.length ? vData.changelog.highlights : prev.highlights
+              }))
+            }
+          }
+        } catch {
+          // Fallback silencieux sur la version locale
+        }
       } catch (err) {
         if (cancelled) return
         setError(err?.message || "Impossible de contacter l'API")

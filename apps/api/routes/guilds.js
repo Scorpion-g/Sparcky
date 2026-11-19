@@ -260,7 +260,13 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
       rconPort: typeof patch.minecraft.rconPort === "number" ? Math.max(1, Math.min(65535, Math.floor(patch.minecraft.rconPort))) : existingMc.rconPort ?? 25575,
       rconPassword,
       statusChannelId: cleanChannel(patch.minecraft.statusChannelId) ?? existingMc.statusChannelId ?? null,
-      statusMessageId: cleanChannel(patch.minecraft.statusMessageId) ?? existingMc.statusMessageId ?? null
+      statusMessageId: cleanChannel(patch.minecraft.statusMessageId) ?? existingMc.statusMessageId ?? null,
+      roleSync: Array.isArray(patch.minecraft.roleSync) ? patch.minecraft.roleSync : (existingMc.roleSync || []),
+      boostReward: patch.minecraft.boostReward && typeof patch.minecraft.boostReward === "object" ? {
+        enabled: Boolean(patch.minecraft.boostReward.enabled),
+        command: typeof patch.minecraft.boostReward.command === "string" ? patch.minecraft.boostReward.command.slice(0, 256) : (existingMc.boostReward?.command || ""),
+        message: typeof patch.minecraft.boostReward.message === "string" ? patch.minecraft.boostReward.message.slice(0, 512) : (existingMc.boostReward?.message || "")
+      } : (existingMc.boostReward || { enabled: false, command: "", message: "" })
     }
   }
 
@@ -354,7 +360,21 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     } : undefined,
 
     // Intégration Minecraft & RCON
-    minecraft: cleanMinecraft
+    minecraft: cleanMinecraft,
+
+    // Compteurs Vocaux Automatiques (Salons statistiques)
+    voiceCounters: patch.voiceCounters && typeof patch.voiceCounters === "object" ? {
+      enabled: typeof patch.voiceCounters.enabled === "boolean" ? patch.voiceCounters.enabled : false,
+      memberChannelId: cleanChannel(patch.voiceCounters.memberChannelId),
+      mcChannelId: cleanChannel(patch.voiceCounters.mcChannelId)
+    } : undefined,
+
+    // Loterie Communautaire
+    lottery: patch.lottery && typeof patch.lottery === "object" ? {
+      enabled: typeof patch.lottery.enabled === "boolean" ? patch.lottery.enabled : true,
+      ticketPrice: typeof patch.lottery.ticketPrice === "number" ? Math.max(1, Math.floor(patch.lottery.ticketPrice)) : 50,
+      channelId: cleanChannel(patch.lottery.channelId)
+    } : undefined
   })
 
   // Synchroniser également dans la collection ticketsettings pour le bot Discord
