@@ -121,32 +121,57 @@ async function postDailyTrivia(client, guildId) {
 
     if (!targetChannel) return false;
 
+    // Déterminer le pool de questions selon la configuration
+    let pool = [...TRIVIA_QUESTIONS];
+    const customList = Array.isArray(guildConfig?.trivia?.customQuestions) ? guildConfig.trivia.customQuestions : [];
+
+    if (guildConfig?.trivia?.mode === "custom" && customList.length > 0) {
+      pool = customList;
+    } else if (guildConfig?.trivia?.mode === "both" && customList.length > 0) {
+      pool = [...TRIVIA_QUESTIONS, ...customList];
+    }
+
     // Choisir une question aléatoire
-    const picked = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
+    const picked = pool[Math.floor(Math.random() * pool.length)];
     const rewardAmount = guildConfig?.trivia?.rewardAmount || 25;
+    const answersList = Array.isArray(picked.answers) ? picked.answers : [picked.answers];
 
     const embed = new EmbedBuilder()
       .setTitle("🧠 Question du Jour • Trivia Sparcky")
-      .setDescription(`**${picked.question}**\n\n💡 **Indice :** *${picked.hint}*\n🎁 **Récompense :** \`+${rewardAmount} 💎\`\n\n*Écrivez directement votre réponse dans ce salon ! Le premier qui trouve remporte le pactole.*`)
+      .setDescription(`**${picked.question}**\n\n💡 **Indice :** *${picked.hint || "Aucun indice"}*\n🎁 **Récompense :** \`+${rewardAmount} 💎\`\n\n*Écrivez directement votre réponse dans ce salon ! Le premier qui trouve remporte le pactole.*`)
       .setColor(0xF59E0B)
       .setFooter({ text: "Sparcky • Question du Jour Automatique", iconURL: client.user.displayAvatarURL() })
       .setTimestamp();
 
     const msg = await targetChannel.send({ embeds: [embed] });
 
-    activeTriviaMap.set(guildId, {
+    const activeData = {
       question: picked.question,
-      answers: picked.answers,
-      normalizedAnswers: picked.answers.map(normalizeString),
+      answers: answersList,
+      normalizedAnswers: answersList.map(normalizeString),
       reward: rewardAmount,
       channelId: targetChannel.id,
       messageId: msg.id,
       startedAt: Date.now()
-    });
+    };
+
+    activeTriviaMap.set(guildId, activeData);
 
     await GuildConfiguration.updateOne(
       { guildId },
-      { $set: { "trivia.lastQuestionDate": new Date().toISOString().slice(0, 10) } },
+      {
+        $set: {
+          "trivia.lastQuestionDate": new Date().toISOString().slice(0, 10),
+          "trivia.activeQuestion": {
+            question: picked.question,
+            answers: answersList,
+            reward: rewardAmount,
+            channelId: targetChannel.id,
+            messageId: msg.id,
+            startedAt: Date.now()
+          }
+        }
+      },
       { upsert: true }
     );
 
@@ -163,7 +188,31 @@ async function postDailyTrivia(client, guildId) {
 async function checkTriviaAnswer(message) {
   if (!message.guild || message.author.bot) return false;
 
-  const trivia = activeTriviaMap.get(message.guild.id);
+  let trivia = activeTriviaMap.get(message.guild.id);
+
+  // Fallback si la question a été déclenchée via l'API ou après un redémarrage du bot
+  if (!trivia) {
+    try {
+      const cfg = await GuildConfiguration.findOne({ guildId: message.guild.id }).lean();
+      if (cfg?.trivia?.activeQuestion?.channelId === message.channel.id) {
+        const aq = cfg.trivia.activeQuestion;
+        const answersList = Array.isArray(aq.answers) ? aq.answers : [aq.answers];
+        trivia = {
+          question: aq.question,
+          answers: answersList,
+          normalizedAnswers: answersList.map(normalizeString),
+          reward: aq.reward || 25,
+          channelId: aq.channelId,
+          messageId: aq.messageId,
+          startedAt: aq.startedAt || Date.now()
+        };
+        activeTriviaMap.set(message.guild.id, trivia);
+      }
+    } catch (e) {
+      // Ignorer
+    }
+  }
+
   if (!trivia) return false;
   if (trivia.channelId !== message.channel.id) return false;
 
@@ -178,6 +227,10 @@ async function checkTriviaAnswer(message) {
 
   // Bonne réponse trouvée !
   activeTriviaMap.delete(message.guild.id);
+  await GuildConfiguration.updateOne(
+    { guildId: message.guild.id },
+    { $unset: { "trivia.activeQuestion": "" } }
+  ).catch(() => {});
 
   try {
     await message.react("🏆").catch(() => {});

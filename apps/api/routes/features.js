@@ -1848,4 +1848,103 @@ router.get("/guilds/:guildId/forms/:formId/submissions", authenticate, async (re
   }
 })
 
+// Pool de questions par défaut (Minecraft & Gaming)
+const DEFAULT_TRIVIA_QUESTIONS = [
+  { question: "Quel minerai se génère uniquement dans le Nether et permet d'améliorer les armures en diamant ?", answers: ["netherite", "débris antique", "debris antique", "lingot de netherite"], hint: "Commence par N..." },
+  { question: "Combien de lingots de fer faut-il au total pour fabriquer une enclume complète dans Minecraft ?", answers: ["31", "31 lingots", "31 fers"], hint: "3 blocs de fer (9x3) + 4 lingots..." },
+  { question: "Quelle est la nourriture préférée des renards dans Minecraft ?", answers: ["baies sucrées", "baies sucrees", "baie sucrée", "baie sucree", "baies", "baie"], hint: "Un petit fruit rouge qui pique..." },
+  { question: "Quel objet unique obtient-on en tuant l'Ender Dragon dans l'End ?", answers: ["oeuf de dragon", "œuf de dragon", "oeuf d'ender dragon", "l'oeuf de dragon"], hint: "Il se téléporte quand on clique dessus..." },
+  { question: "Comment s'appelle le mob hostile tourbillonnant apparu dans les Chambres des épreuves (Minecraft 1.21) ?", answers: ["breeze", "le breeze"], hint: "Le cousin venteux du Blaze..." },
+  { question: "Combien de cœurs possède un Wither dans Minecraft en difficulté normale ?", answers: ["150", "300 pv", "150 cœurs", "150 coeurs"], hint: "Le double de l'Ender Dragon..." },
+  { question: "Quel est le nom du minerai vert servant de monnaie d'échange avec les villageois ?", answers: ["émeraude", "emeraude", "emerald", "les émeraudes"], hint: "💎 Vert..." },
+  { question: "Comment s'appelle le personnage principal vêtu de vert dans la saga The Legend of Zelda ?", answers: ["link", "le héros du temps"], hint: "Ce n'est pas Zelda !" },
+  { question: "Dans quel jeu vidéo démarre-t-on la partie en sautant du Battle Bus ?", answers: ["fortnite", "fortnite battle royale"], hint: "Top 1..." },
+  { question: "En quelle année est sortie la toute première version publique Alpha de Minecraft ?", answers: ["2009"], hint: "Créé par Notch en mai..." },
+  { question: "Quel est le nom du studio créateur originel de Minecraft ?", answers: ["mojang", "mojang studios", "mojang ab"], hint: "Un studio suédois..." },
+  { question: "Quel animal sert de fidèle monture à Mario dans les jeux de plateforme Nintendo ?", answers: ["yoshi"], hint: "Un petit dinosaure vert à langue gluante..." },
+  { question: "Combien de morceaux de bambou faut-il pour confectionner 2 bâtons dans Minecraft ?", answers: ["2", "2 bambous"], hint: "Un simple alignement vertical..." },
+  { question: "Quel animal peut-on apprivoiser avec un os dans Minecraft ?", answers: ["loup", "chien", "le loup", "le chien"], hint: "Il aboie et attaque les squelettes..." },
+  { question: "Quel est le nom du célèbre plombier vêtu de rouge de Nintendo ?", answers: ["mario", "super mario"], hint: "Mamma mia !" }
+]
+
+// Obtenir la liste des questions par défaut
+router.get("/guilds/:guildId/trivia/default-questions", authenticate, async (_req, res) => {
+  return res.json({ questions: DEFAULT_TRIVIA_QUESTIONS })
+})
+
+// Déclencher manuellement une question du jour
+router.post("/guilds/:guildId/trivia/trigger", authenticate, async (req, res) => {
+  const { guildId } = req.params
+  const token = getBotToken()
+  if (!token) return res.status(500).json({ error: "DISCORD_BOT_TOKEN manquant" })
+
+  try {
+    const config = await getGuildConfig(guildId)
+    const triviaCfg = config?.trivia || {}
+
+    const channelId = triviaCfg.channelId
+    if (!channelId) {
+      return res.status(400).json({ error: "Aucun salon cible n'a été configuré pour la Question du Jour. Définissez-en un dans les paramètres." })
+    }
+
+    // Sélection de la question
+    let pool = [...DEFAULT_TRIVIA_QUESTIONS]
+    const customList = Array.isArray(triviaCfg.customQuestions) ? triviaCfg.customQuestions : []
+
+    if (triviaCfg.mode === "custom" && customList.length > 0) {
+      pool = customList
+    } else if (triviaCfg.mode === "both" && customList.length > 0) {
+      pool = [...DEFAULT_TRIVIA_QUESTIONS, ...customList]
+    }
+
+    const picked = pool[Math.floor(Math.random() * pool.length)]
+    const reward = triviaCfg.rewardAmount || 25
+
+    const embed = {
+      title: "🧠 Question du Jour • Trivia Sparcky",
+      description: `**${picked.question}**\n\n💡 **Indice :** *${picked.hint || "Aucun indice"}*\n🎁 **Récompense :** \`+${reward} 💎\`\n\n*Écrivez directement votre réponse dans ce salon ! Le premier qui trouve remporte le pactole.*`,
+      color: 0xF59E0B,
+      footer: { text: "Sparcky • Question du Jour Interactive" },
+      timestamp: new Date().toISOString()
+    }
+
+    const response = await axios.post(
+      `https://discord.com/api/v10/channels/${channelId}/messages`,
+      { embeds: [embed] },
+      {
+        headers: {
+          Authorization: `Bot ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    )
+
+    const db = await getDb()
+    const todayStr = new Date().toISOString().slice(0, 10)
+
+    await db.collection("guildconfigurations").updateOne(
+      { guildId },
+      {
+        $set: {
+          "trivia.lastQuestionDate": todayStr,
+          "trivia.activeQuestion": {
+            question: picked.question,
+            answers: Array.isArray(picked.answers) ? picked.answers : [picked.answers],
+            reward,
+            channelId,
+            messageId: response.data?.id,
+            startedAt: Date.now()
+          }
+        }
+      }
+    )
+
+    return res.json({ success: true, question: picked.question, channelId, messageId: response.data?.id })
+  } catch (err) {
+    console.error("POST trivia/trigger error:", err?.response?.data || err?.message)
+    const apiMsg = err?.response?.data?.message || err?.message
+    return res.status(500).json({ error: `Impossible de publier la question : ${apiMsg}` })
+  }
+})
+
 export default router

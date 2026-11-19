@@ -290,6 +290,24 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
 
     // Auto-Répondeur & Commandes Personnalisées
     customCommands: Array.isArray(patch.customCommands) ? patch.customCommands : undefined,
+
+    // Question du Jour (Trivia QOTD)
+    trivia: patch.trivia && typeof patch.trivia === "object" ? {
+      enabled: typeof patch.trivia.enabled === "boolean" ? patch.trivia.enabled : true,
+      channelId: cleanChannel(patch.trivia.channelId),
+      rewardAmount: typeof patch.trivia.rewardAmount === "number" ? Math.max(1, Math.floor(patch.trivia.rewardAmount)) : 25,
+      mode: ["integrated", "custom", "both"].includes(patch.trivia.mode) ? patch.trivia.mode : "both",
+      customQuestions: Array.isArray(patch.trivia.customQuestions) ? patch.trivia.customQuestions.map(q => ({
+        id: q.id || `q_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        question: String(q.question || "").trim().slice(0, 300),
+        answers: Array.isArray(q.answers)
+          ? q.answers.map(a => String(a).trim()).filter(Boolean)
+          : String(q.answers || "").split(",").map(a => a.trim()).filter(Boolean),
+        hint: String(q.hint || "").trim().slice(0, 150),
+        createdAt: q.createdAt ? new Date(q.createdAt) : new Date()
+      })).filter(q => q.question && q.answers.length > 0) : [],
+      lastQuestionDate: typeof patch.trivia.lastQuestionDate === "string" ? patch.trivia.lastQuestionDate : undefined
+    } : undefined,
   })
 
   // Synchroniser également dans la collection ticketsettings pour le bot Discord

@@ -231,6 +231,13 @@ export default function GuildPage() {
   const [formMsg, setFormMsg] = useState(null)
   const [submissionsModal, setSubmissionsModal] = useState(null)
 
+  // Données Question du Jour (QOTD Trivia)
+  const [triviaMsg, setTriviaMsg] = useState(null)
+  const [triviaTriggering, setTriviaTriggering] = useState(false)
+  const [newTriviaQ, setNewTriviaQ] = useState({ question: "", answers: "", hint: "" })
+  const [showDefaultTrivia, setShowDefaultTrivia] = useState(false)
+  const [defaultTriviaList, setDefaultTriviaList] = useState([])
+
   function logout() {
     clearJwt()
     navigate("/login", { replace: true })
@@ -322,6 +329,15 @@ export default function GuildPage() {
       fetchStats()
     } else if (activeTab === "audit" && id && token) {
       fetchAuditLogs()
+    } else if (activeTab === "trivia" && id && token && defaultTriviaList.length === 0) {
+      fetch(`${API_BASE_URL}/api/guilds/${id}/trivia/default-questions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(payload => {
+          if (payload?.questions) setDefaultTriviaList(payload.questions)
+        })
+        .catch(() => {})
     }
   }, [activeTab, id, token])
 
@@ -1416,6 +1432,87 @@ export default function GuildPage() {
     }
   }
 
+  // Fonctions de gestion de la Question du Jour (QOTD Trivia)
+  function handleAddTriviaQuestion(e) {
+    if (e) e.preventDefault()
+    if (!newTriviaQ.question.trim() || !newTriviaQ.answers.trim()) {
+      setTriviaMsg({ type: "error", text: "Veuillez renseigner la question et au moins une réponse acceptée." })
+      return
+    }
+
+    const answers = newTriviaQ.answers
+      .split(",")
+      .map(a => a.trim())
+      .filter(Boolean)
+
+    if (answers.length === 0) {
+      setTriviaMsg({ type: "error", text: "Veuillez indiquer au moins une réponse valide." })
+      return
+    }
+
+    const currentQuestions = Array.isArray(config?.trivia?.customQuestions)
+      ? [...config.trivia.customQuestions]
+      : []
+
+    const newQuestionObj = {
+      id: "q_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
+      question: newTriviaQ.question.trim(),
+      answers,
+      hint: newTriviaQ.hint.trim(),
+      createdAt: new Date().toISOString()
+    }
+
+    const updated = [newQuestionObj, ...currentQuestions]
+    updateField("trivia", {
+      ...(config?.trivia || { enabled: true, rewardAmount: 25, mode: "both" }),
+      customQuestions: updated
+    })
+
+    setNewTriviaQ({ question: "", answers: "", hint: "" })
+    setTriviaMsg({ type: "success", text: "Question personnalisée ajoutée avec succès ! Pensez à enregistrer vos modifications." })
+  }
+
+  function handleDeleteTriviaQuestion(questionId) {
+    const currentQuestions = Array.isArray(config?.trivia?.customQuestions)
+      ? config.trivia.customQuestions
+      : []
+    const updated = currentQuestions.filter(q => q.id !== questionId)
+    updateField("trivia", {
+      ...(config?.trivia || { enabled: true, rewardAmount: 25, mode: "both" }),
+      customQuestions: updated
+    })
+    setTriviaMsg({ type: "success", text: "Question supprimée. N'oubliez pas d'enregistrer." })
+  }
+
+  async function handleTriggerTrivia() {
+    const channelId = config?.trivia?.channelId
+    if (!channelId) {
+      setTriviaMsg({ type: "error", text: "Veuillez d'abord configurer et enregistrer un salon Discord pour la Question du Jour." })
+      return
+    }
+
+    setTriviaTriggering(true)
+    setTriviaMsg(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/guilds/${id}/trivia/trigger`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      })
+      const payload = await res.json()
+      if (!res.ok) {
+        throw new Error(payload?.error || "Erreur lors de la publication de la question.")
+      }
+      setTriviaMsg({ type: "success", text: `Question envoyée avec succès sur Discord ! (« ${payload.question} »)` })
+    } catch (err) {
+      setTriviaMsg({ type: "error", text: err.message || "Impossible de publier la question." })
+    } finally {
+      setTriviaTriggering(false)
+    }
+  }
+
   // Fonctions de gestion des règles d'Auto-Sanction
   function handleAddSanctionRule() {
     const currentRules = Array.isArray(config?.autoSanctionRules) ? [...config.autoSanctionRules] : [
@@ -1626,6 +1723,7 @@ export default function GuildPage() {
                       <option value="customCommands">🤖 {t("tabs.customCommands")} ({config?.customCommands?.length || 0})</option>
                       <option value="integrations">🔌 {t("tabs.integrations")} ({(config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)})</option>
                       <option value="forms">📋 {t("tabs.forms")} ({config?.forms?.length || 0})</option>
+                      <option value="trivia">💡 {t("tabs.trivia")} ({config?.trivia?.customQuestions?.length || 0})</option>
                       <option value="economy">🪙 {config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")}</option>
                       <option value="leveling">🏆 {config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")}</option>
                       <option value="giveaways">🎉 {t("tabs.giveaways")}</option>
@@ -1651,6 +1749,7 @@ export default function GuildPage() {
                   <TabButton active={activeTab === "customCommands"} onClick={() => setActiveTab("customCommands")} icon="🤖" label={config?.customCommands?.length ? `${t("tabs.customCommands")} (${config.customCommands.length})` : t("tabs.customCommands")} />
                   <TabButton active={activeTab === "integrations"} onClick={() => setActiveTab("integrations")} icon="🔌" label={((config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)) ? `${t("tabs.integrations")} (${(config?.integrations?.youtube?.length || 0) + (config?.integrations?.twitch?.length || 0)})` : t("tabs.integrations")} />
                   <TabButton active={activeTab === "forms"} onClick={() => setActiveTab("forms")} icon="📋" label={config?.forms?.length ? `${t("tabs.forms")} (${config.forms.length})` : t("tabs.forms")} />
+                  <TabButton active={activeTab === "trivia"} onClick={() => setActiveTab("trivia")} icon="💡" label={config?.trivia?.customQuestions?.length ? `${t("tabs.trivia")} (${config.trivia.customQuestions.length})` : t("tabs.trivia")} />
                   <TabButton active={activeTab === "economy"} onClick={() => setActiveTab("economy")} icon="🪙" label={config?.economyEnabled === false ? `${t("tabs.economy")} (${t("common.disabled")})` : t("tabs.economy")} />
                   <TabButton active={activeTab === "leveling"} onClick={() => setActiveTab("leveling")} icon="🏆" label={config?.xpEnabled === false ? `${t("tabs.leveling")} (${t("common.disabled")})` : t("tabs.leveling")} />
                   <TabButton active={activeTab === "giveaways"} onClick={() => setActiveTab("giveaways")} icon="🎉" label={t("tabs.giveaways")} />
@@ -3581,6 +3680,312 @@ export default function GuildPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Section Question du Jour (QOTD Trivia) */}
+                {activeTab === "trivia" && (
+                  <div className="space-y-8">
+                    {/* Message d'état */}
+                    {triviaMsg && (
+                      <div
+                        className={`rounded-2xl border p-4 text-sm font-semibold flex items-center justify-between ${
+                          triviaMsg.type === "success"
+                            ? "border-emerald-500/30 bg-emerald-950/80 text-emerald-200"
+                            : "border-rose-500/30 bg-rose-950/80 text-rose-200"
+                        }`}
+                      >
+                        <span>{triviaMsg.text}</span>
+                        <button type="button" onClick={() => setTriviaMsg(null)} className="text-xs opacity-70 hover:opacity-100">✕</button>
+                      </div>
+                    )}
+
+                    {/* Carte 1 : Paramètres du module */}
+                    <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-xl text-amber-400">
+                            💡
+                          </span>
+                          <div>
+                            <h2 className="text-lg font-bold text-white">Question du Jour & Trivia Interactive</h2>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Animez automatiquement votre serveur chaque jour avec une énigme ou un quiz. Le premier joueur qui trouve la bonne réponse dans le chat remporte une récompense en monnaie !
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => updateField("trivia", {
+                            ...(config?.trivia || {}),
+                            enabled: config?.trivia?.enabled === false ? true : false
+                          })}
+                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            config?.trivia?.enabled !== false ? "bg-amber-500" : "bg-slate-700"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              config?.trivia?.enabled !== false ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {config?.trivia?.enabled !== false && (
+                        <div className="mt-6 border-t border-white/10 pt-6 space-y-6">
+                          <div className="grid gap-4 sm:grid-cols-3">
+                            {/* Salon Discord */}
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Salon Discord Cible
+                              </label>
+                              <select
+                                value={config?.trivia?.channelId || ""}
+                                onChange={e => updateField("trivia", {
+                                  ...(config?.trivia || {}),
+                                  channelId: e.target.value || null
+                                })}
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-500"
+                              >
+                                <option value="">-- Sélectionner un salon --</option>
+                                {textChannels.map(ch => (
+                                  <option key={ch.id} value={ch.id}>#{ch.name}</option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-[11px] text-slate-400">Où la question quotidienne sera postée.</p>
+                            </div>
+
+                            {/* Récompense */}
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Récompense du Vainqueur ({config?.currencySymbol || "💎"})
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                max="10000"
+                                value={config?.trivia?.rewardAmount ?? 25}
+                                onChange={e => updateField("trivia", {
+                                  ...(config?.trivia || {}),
+                                  rewardAmount: Math.max(1, Math.floor(Number(e.target.value) || 25))
+                                })}
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-500"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">Montant crédité sur le compte du joueur.</p>
+                            </div>
+
+                            {/* Mode de questions */}
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Mode de Questions
+                              </label>
+                              <select
+                                value={config?.trivia?.mode || "both"}
+                                onChange={e => updateField("trivia", {
+                                  ...(config?.trivia || {}),
+                                  mode: e.target.value
+                                })}
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-amber-500"
+                              >
+                                <option value="both">🌟 Mixte (Sparcky + Vos questions)</option>
+                                <option value="custom">🎨 Personnalisé uniquement</option>
+                                <option value="integrated">🧠 Sparcky uniquement (Minecraft & Pop-culture)</option>
+                              </select>
+                              <p className="mt-1 text-[11px] text-slate-400">Provenance des questions posées.</p>
+                            </div>
+                          </div>
+
+                          {/* Action manuelle : Poser une question maintenant */}
+                          <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                            <div>
+                              <h4 className="text-sm font-bold text-amber-200">⚡ Déclenchement Immédiat</h4>
+                              <p className="text-xs text-amber-200/70">
+                                Envoyez instantanément une question dans le salon sans attendre le tirage programmé du matin.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={triviaTriggering || !config?.trivia?.channelId}
+                              onClick={handleTriggerTrivia}
+                              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-amber-600/30 transition hover:bg-amber-500 disabled:opacity-50"
+                            >
+                              {triviaTriggering ? "Publication..." : "⚡ Poser une question maintenant"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Carte 2 : Créer une Question Personnalisée */}
+                    {config?.trivia?.enabled !== false && (
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500/10 text-xl text-indigo-400">
+                            ➕
+                          </span>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Ajouter une Question Personnalisée</h3>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Créez vos propres questions adaptées à votre communauté (serveur Minecraft, streamers, lore du serveur...).
+                            </p>
+                          </div>
+                        </div>
+
+                        <form onSubmit={handleAddTriviaQuestion} className="mt-6 space-y-4">
+                          <div>
+                            <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                              Intitulé de la Question
+                            </label>
+                            <input
+                              type="text"
+                              value={newTriviaQ.question}
+                              onChange={e => setNewTriviaQ(prev => ({ ...prev, question: e.target.value }))}
+                              placeholder="ex: Quel est le nom de la ville principale d'Uchronie ?"
+                              className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Réponses Acceptées (séparées par une virgule)
+                              </label>
+                              <input
+                                type="text"
+                                value={newTriviaQ.answers}
+                                onChange={e => setNewTriviaQ(prev => ({ ...prev, answers: e.target.value }))}
+                                placeholder="ex: uchronia, uchro, capitale"
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">Insensible à la casse et aux accents.</p>
+                            </div>
+
+                            <div>
+                              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                Indice (facultatif)
+                              </label>
+                              <input
+                                type="text"
+                                value={newTriviaQ.hint}
+                                onChange={e => setNewTriviaQ(prev => ({ ...prev, hint: e.target.value }))}
+                                placeholder="ex: Commence par un U..."
+                                className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950 px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="submit"
+                              className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-600/30 transition hover:bg-indigo-500"
+                            >
+                              Ajouter la question
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+
+                    {/* Carte 3 : Liste des questions personnalisées */}
+                    {config?.trivia?.enabled !== false && (
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-bold text-white">
+                              Questions Personnalisées ({config?.trivia?.customQuestions?.length || 0})
+                            </h3>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Ces questions seront tirées au sort lors des publications automatiques.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 space-y-3">
+                          {config?.trivia?.customQuestions?.length ? (
+                            config.trivia.customQuestions.map((q, idx) => (
+                              <div
+                                key={q.id || idx}
+                                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-white/20"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                                      Q#{idx + 1}
+                                    </span>
+                                    <h4 className="text-sm font-semibold text-white">{q.question}</h4>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                                    <span>
+                                      ✅ Réponses : <strong className="text-emerald-400">{(Array.isArray(q.answers) ? q.answers : [q.answers]).join(", ")}</strong>
+                                    </span>
+                                    {q.hint && (
+                                      <span>
+                                        💡 Indice : <span className="italic text-slate-300">{q.hint}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTriviaQuestion(q.id)}
+                                  className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20 shrink-0 self-start sm:self-auto"
+                                >
+                                  Supprimer
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-slate-500">
+                              Aucune question personnalisée pour l'instant. Utilisez le formulaire ci-dessus pour en créer !
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Carte 4 : Pool de questions intégrées Sparcky */}
+                    {config?.trivia?.enabled !== false && (
+                      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 backdrop-blur-xl sm:p-8">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Questions Intégrées Sparcky (15)</h3>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              Pool de culture générale Minecraft, Gaming et Pop-culture pré-embarqué dans le bot.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowDefaultTrivia(prev => !prev)}
+                            className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10"
+                          >
+                            {showDefaultTrivia ? "Masquer ▲" : "Afficher ▼"}
+                          </button>
+                        </div>
+
+                        {showDefaultTrivia && (
+                          <div className="mt-6 space-y-2.5 max-h-96 overflow-y-auto pr-2">
+                            {(defaultTriviaList.length ? defaultTriviaList : [
+                              { question: "Quel minerai se génère uniquement dans le Nether et permet d'améliorer les armures en diamant ?", answers: ["Netherite"], hint: "Commence par N..." },
+                              { question: "Combien de lingots de fer faut-il au total pour fabriquer une enclume complète dans Minecraft ?", answers: ["31"], hint: "3 blocs de fer + 4 lingots..." },
+                              { question: "Quelle est la nourriture préférée des renards dans Minecraft ?", answers: ["Baies sucrées"], hint: "Un petit fruit rouge..." },
+                              { question: "Comment s'appelle le mob hostile tourbillonnant des Chambres des épreuves (1.21) ?", answers: ["Breeze"], hint: "Le cousin venteux du Blaze..." },
+                              { question: "Combien de cœurs possède un Wither dans Minecraft en difficulté normale ?", answers: ["150 cœurs (300 PV)"], hint: "Le double du dragon..." }
+                            ]).map((q, idx) => (
+                              <div key={idx} className="rounded-xl border border-white/5 bg-slate-950/40 p-3 text-xs">
+                                <span className="font-semibold text-slate-200">#{idx + 1} {q.question}</span>
+                                <div className="mt-1 text-slate-400">
+                                  <span className="text-emerald-400">Réponse : {(Array.isArray(q.answers) ? q.answers : [q.answers])[0]}</span>
+                                  {q.hint && <span className="ml-3 text-amber-300/80 italic">Indice : {q.hint}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

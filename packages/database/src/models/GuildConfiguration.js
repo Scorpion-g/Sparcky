@@ -201,6 +201,19 @@ const guildConfigSchema = new mongoose.Schema({
     channelId: { type: String, default: null },
     rewardAmount: { type: Number, default: 25 },
     enabled: { type: Boolean, default: true },
+    mode: { type: String, enum: ["integrated", "custom", "both"], default: "both" },
+    customQuestions: {
+      type: [
+        {
+          id: { type: String, required: true },
+          question: { type: String, required: true },
+          answers: { type: [String], default: [] },
+          hint: { type: String, default: "" },
+          createdAt: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
     lastQuestionDate: { type: String, default: null }
   }
 });

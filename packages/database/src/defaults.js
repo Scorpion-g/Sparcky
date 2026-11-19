@@ -85,6 +85,8 @@ function defaultGuildConfig() {
       channelId: null,
       rewardAmount: 25,
       enabled: true,
+      mode: "both",
+      customQuestions: [],
       lastQuestionDate: null
     }
   };
