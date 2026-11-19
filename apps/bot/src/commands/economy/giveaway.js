@@ -174,6 +174,42 @@ module.exports = {
         });
       }
 
+      // 1. Vérification des permissions du bot dans le salon cible
+      const botPermissions = channel.permissionsFor(interaction.guild.members.me);
+      if (!botPermissions || !botPermissions.has(PermissionFlagsBits.SendMessages) || !botPermissions.has(PermissionFlagsBits.EmbedLinks)) {
+        return interaction.reply({
+          content: `❌ Je n'ai pas les permissions nécessaires (**Envoyer des messages**, **Intégrer des liens**) dans le salon ${channel}.`,
+          ephemeral: true,
+        });
+      }
+
+      // 2. Vérification de la hiérarchie des rôles si récompense en rôle
+      if (rewardType === "role" && role) {
+        const botMember = interaction.guild.members.me;
+        if (botMember && role.position >= botMember.roles.highest.position) {
+          return interaction.reply({
+            content: `❌ Je ne peux pas proposer le rôle <@&${role.id}> en récompense car sa position (${role.position}) est supérieure ou égale à mon rôle le plus élevé (\`${botMember.roles.highest.name}\` - position ${botMember.roles.highest.position}).\nVeuillez placer mon rôle au-dessus de ce rôle dans les paramètres Discord du serveur.`,
+            ephemeral: true,
+          });
+        }
+      }
+
+      // 3. Ajustement automatique des permissions du salon pour @everyone (clic bouton sans ouvrir le chat)
+      try {
+        const everyoneRole = interaction.guild.roles.everyone;
+        await channel.permissionOverwrites.edit(
+          everyoneRole,
+          {
+            ViewChannel: true,
+            ReadMessageHistory: true,
+            UseApplicationCommands: true,
+          },
+          { reason: "Autoriser tous les membres à cliquer sur les boutons de giveaway" }
+        );
+      } catch (permErr) {
+        logger.warn(`[GIVEAWAY] Impossible d'ajuster les permissions du salon ${channel.name}: ${permErr?.message}`);
+      }
+
       // Formatage du lot si type spécifique
       let finalPrize = prize.trim();
       if (rewardType === "coins" && rewardAmount && !finalPrize.includes(String(rewardAmount))) {

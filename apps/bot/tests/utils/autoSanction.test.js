@@ -8,11 +8,18 @@ function buildMember({
   canModerate = true,
   kickable = true,
   bannable = true,
+  moderatable = true,
   hasTextLogChannel = true,
 } = {}) {
   const sent = [];
   const logChannel = hasTextLogChannel
-    ? { isTextBased: () => true, send: (payload) => sent.push(payload) }
+    ? {
+        isTextBased: () => true,
+        send: (payload) => {
+          sent.push(payload);
+          return Promise.resolve();
+        },
+      }
     : null;
 
   const member = {
@@ -20,6 +27,7 @@ function buildMember({
     user: { tag: "user#0001" },
     kickable,
     bannable,
+    moderatable,
     timeoutCalls: [],
     kickCalls: [],
     banCalls: [],

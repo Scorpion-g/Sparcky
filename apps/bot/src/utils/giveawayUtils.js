@@ -88,18 +88,29 @@ function buildGiveawayButton(giveaway, isEnded = false) {
  */
 async function handleGiveawayButton(interaction) {
   try {
-    const giveawayId = interaction.customId.replace("giveaway_join_", "");
+    // 1. Défération immédiate pour éviter le timeout de 3 secondes Discord (qui affiche "Cette interaction a échoué")
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+
+    // 2. Extraction robuste de l'ID du giveaway (supporte giveaway_join_ et giveaway_enter_)
+    const giveawayId = interaction.customId.replace(/^giveaway_(join|enter)_/, "");
+
+    // Validation ID MongoDB ObjectId
+    if (!giveawayId || !giveawayId.match(/^[0-9a-fA-F]{24}$/)) {
+      const msg = "⚠️ Identifiant de giveaway invalide ou introuvable.";
+      if (interaction.deferred) return interaction.editReply({ content: msg });
+      return interaction.reply({ content: msg, ephemeral: true });
+    }
+
     const giveaway = await Giveaway.findById(giveawayId);
 
     if (!giveaway || giveaway.isEnded) {
-      return interaction.reply({
-        content: "⚠️ Ce giveaway est introuvable ou déjà terminé !",
-        ephemeral: true,
-      });
+      const msg = "⚠️ Ce giveaway est introuvable ou déjà terminé !";
+      if (interaction.deferred) return interaction.editReply({ content: msg });
+      return interaction.reply({ content: msg, ephemeral: true });
     }
 
     const userId = interaction.user.id;
-    const isParticipating = giveaway.participants.includes(userId);
+    const isParticipating = Array.isArray(giveaway.participants) && giveaway.participants.includes(userId);
 
     let updatedDoc;
     if (isParticipating) {
@@ -116,30 +127,44 @@ async function handleGiveawayButton(interaction) {
       );
     }
 
-    // Mise à jour visuelle du bouton sur le message Discord d'origine
+    // 3. Mise à jour visuelle du bouton et de l'embed sur le message Discord d'origine
     if (updatedDoc) {
-      const row = buildGiveawayButton(updatedDoc, false);
-      await interaction.message.edit({ components: [row] }).catch(() => {});
+      try {
+        const row = buildGiveawayButton(updatedDoc, false);
+        const embed = buildGiveawayEmbed(updatedDoc, false);
+        await interaction.message.edit({ embeds: [embed], components: [row] }).catch((err) => {
+          logger.warn(`[GIVEAWAY] Impossible d'éditer le message du giveaway ${giveawayId}: ${err?.message}`);
+        });
+      } catch (editErr) {
+        logger.warn(`[GIVEAWAY] Erreur mise à jour message: ${editErr?.message}`);
+      }
     }
 
+    // 4. Notification éphémère à l'utilisateur
     if (!isParticipating) {
-      return interaction.reply({
-        content: `🎉 Félicitations, votre participation pour **${giveaway.prize}** a bien été validée ! Bonne chance ! 🍀`,
-        ephemeral: true,
-      });
+      const successMsg = `🎉 Félicitations, votre participation pour **${giveaway.prize}** a bien été validée ! Bonne chance ! 🍀\n*(Cliquez à nouveau sur le bouton si vous souhaitez vous retirer du tirage).*`;
+      if (interaction.deferred) {
+        return interaction.editReply({ content: successMsg });
+      }
+      return interaction.reply({ content: successMsg, ephemeral: true });
     } else {
-      return interaction.reply({
-        content: `❌ Vous ne participez plus au giveaway pour **${giveaway.prize}**.`,
-        ephemeral: true,
-      });
+      const leaveMsg = `❌ Votre participation au giveaway pour **${giveaway.prize}** a été annulée.`;
+      if (interaction.deferred) {
+        return interaction.editReply({ content: leaveMsg });
+      }
+      return interaction.reply({ content: leaveMsg, ephemeral: true });
     }
   } catch (err) {
     logger.error(`[GIVEAWAY] Erreur handleGiveawayButton: ${err?.message}`);
-    if (!interaction.replied && !interaction.deferred) {
-      return interaction.reply({
-        content: "Une erreur est survenue lors de l'enregistrement de votre participation.",
-        ephemeral: true,
-      });
+    const errMsg = "❌ Une erreur est survenue lors de l'enregistrement de votre participation.";
+    try {
+      if (interaction.deferred) {
+        return interaction.editReply({ content: errMsg });
+      } else if (!interaction.replied) {
+        return interaction.reply({ content: errMsg, ephemeral: true });
+      }
+    } catch (replyErr) {
+      logger.error(`[GIVEAWAY] Erreur réponse interaction: ${replyErr?.message}`);
     }
   }
 }
@@ -148,9 +173,10 @@ async function handleGiveawayButton(interaction) {
  * Distribue automatiquement les récompenses aux gagnants d'un giveaway
  */
 async function distributeGiveawayRewards(client, giveaway, winners) {
-  if (!winners || winners.length === 0) return;
+  if (!winners || winners.length === 0) return { manualRoleWinners: [] };
 
   const guild = client.guilds.cache.get(giveaway.guildId);
+  const manualRoleWinners = [];
 
   // 1. Récompense en monnaie / économie
   if (giveaway.rewardType === "coins" && giveaway.rewardAmount > 0) {
@@ -182,45 +208,76 @@ async function distributeGiveawayRewards(client, giveaway, winners) {
 
   // 3. Attribution automatique de rôle Discord
   if (giveaway.rewardType === "role" && giveaway.rewardRoleId && guild) {
+    const botMember = guild.members?.me || (guild.members?.fetch ? await guild.members.fetch(client.user?.id).catch(() => null) : null);
+    const role = guild.roles?.cache?.get(giveaway.rewardRoleId) || (guild.roles?.fetch ? await guild.roles.fetch(giveaway.rewardRoleId).catch(() => null) : null);
+
     for (const winnerId of winners) {
       try {
-        const member = await guild.members.fetch(winnerId).catch(() => null);
-        if (member) {
-          await member.roles.add(giveaway.rewardRoleId).catch((err) => {
-            logger.warn(`[GIVEAWAY] Impossible d'attribuer le rôle ${giveaway.rewardRoleId} à ${winnerId}: ${err?.message}`);
-          });
+        const member = guild.members?.fetch ? await guild.members.fetch(winnerId).catch(() => null) : null;
+        if (!member) {
+          logger.warn(`[GIVEAWAY] Gagnant ${winnerId} introuvable sur le serveur.`);
+          continue;
+        }
+
+        // Vérification de la hiérarchie Discord
+        const isOwner = guild.ownerId && member.id === guild.ownerId;
+        const memberHighest = member.roles?.highest?.position ?? 0;
+        const botHighest = botMember?.roles?.highest?.position ?? Infinity;
+        const isHigherOrEqualThanBot = botMember && memberHighest >= botHighest;
+        const isRoleHigherThanBot = botMember && role && role.position >= botHighest;
+
+        if (isOwner || isHigherOrEqualThanBot || isRoleHigherThanBot) {
+          logger.warn(
+            `[GIVEAWAY] Impossible d'attribuer automatiquement le rôle ${role?.name || giveaway.rewardRoleId} à ${member.user?.tag || winnerId} : ` +
+            `Hiérarchie Discord (membre ou rôle au-dessus du bot). Attribution manuelle requise.`
+          );
+          manualRoleWinners.push(winnerId);
+        } else {
+          if (member.roles?.add) {
+            await member.roles.add(giveaway.rewardRoleId).catch((err) => {
+              logger.warn(`[GIVEAWAY] Impossible d'attribuer le rôle ${giveaway.rewardRoleId} à ${winnerId}: ${err?.message}`);
+              manualRoleWinners.push(winnerId);
+            });
+          }
         }
       } catch (err) {
         logger.error(`[GIVEAWAY] Erreur attribution rôle ${winnerId}: ${err?.message}`);
+        manualRoleWinners.push(winnerId);
       }
     }
-    logger.info(`[GIVEAWAY] Rôle ${giveaway.rewardRoleId} attribué aux gagnants.`);
+    logger.info(`[GIVEAWAY] Rôle ${giveaway.rewardRoleId} traité pour ${winners.length} gagnant(s).`);
   }
+
+  return { manualRoleWinners };
 }
 
 /**
  * Construit le message d'annonce des vainqueurs
  */
-function buildWinnerAnnouncement(giveaway, winners) {
+function buildWinnerAnnouncement(giveaway, winners, manualRoleWinners = []) {
   if (!winners || winners.length === 0) {
     return `😕 Aucun gagnant n'a pu être tiré au sort pour le giveaway **${giveaway.prize}** (aucun participant éligible).`;
   }
 
   const mentions = winners.map((id) => `<@${id}>`).join(", ");
+  let announcement = "";
 
   if (giveaway.rewardType === "coins" && giveaway.rewardAmount > 0) {
-    return `🎉 Félicitations ${mentions} ! Vous remportez **${giveaway.prize}** !\n💰 **+${giveaway.rewardAmount} pièces** ont été créditées directement sur votre solde d'économie ! 🪙`;
+    announcement = `🎉 Félicitations ${mentions} ! Vous remportez **${giveaway.prize}** !\n💰 **+${giveaway.rewardAmount} pièces** ont été créditées directement sur votre solde d'économie ! 🪙`;
+  } else if (giveaway.rewardType === "xp" && giveaway.rewardAmount > 0) {
+    announcement = `🎉 Félicitations ${mentions} ! Vous remportez **${giveaway.prize}** !\n⭐ **+${giveaway.rewardAmount} points d'XP** ont été ajoutés à votre progression de niveau ! 🆙`;
+  } else if (giveaway.rewardType === "role" && giveaway.rewardRoleId) {
+    announcement = `🎉 Félicitations ${mentions} ! Vous remportez le rôle <@&${giveaway.rewardRoleId}> !\n🎭 Le rôle vous a été automatiquement attribué sur le serveur ! ✔️`;
+  } else {
+    announcement = `🎉 Félicitations ${mentions} ! Vous avez remporté le giveaway pour **${giveaway.prize}** ! 🎁`;
   }
 
-  if (giveaway.rewardType === "xp" && giveaway.rewardAmount > 0) {
-    return `🎉 Félicitations ${mentions} ! Vous remportez **${giveaway.prize}** !\n⭐ **+${giveaway.rewardAmount} points d'XP** ont été ajoutés à votre progression de niveau ! 🆙`;
+  if (manualRoleWinners && manualRoleWinners.length > 0) {
+    const manualMentions = manualRoleWinners.map((id) => `<@${id}>`).join(", ");
+    announcement += `\n\n⚠️ **Note Staff :** ${manualMentions} possède un rôle supérieur ou égal au bot (ou est le propriétaire du serveur). En raison de la hiérarchie Discord, veuillez lui attribuer le rôle <@&${giveaway.rewardRoleId}> manuellement.`;
   }
 
-  if (giveaway.rewardType === "role" && giveaway.rewardRoleId) {
-    return `🎉 Félicitations ${mentions} ! Vous remportez le rôle <@&${giveaway.rewardRoleId}> !\n🎭 Le rôle vous a été automatiquement attribué sur le serveur ! ✔️`;
-  }
-
-  return `🎉 Félicitations ${mentions} ! Vous avez remporté le giveaway pour **${giveaway.prize}** ! 🎁`;
+  return announcement;
 }
 
 /**
@@ -250,7 +307,7 @@ async function finishGiveaway(client, giveawayDoc) {
     await doc.save();
 
     // Distribution automatique des récompenses (Coins, XP, Rôles)
-    await distributeGiveawayRewards(client, doc, winners);
+    const { manualRoleWinners } = (await distributeGiveawayRewards(client, doc, winners)) || { manualRoleWinners: [] };
 
     if (channel && channel.isTextBased()) {
       // Édition du message d'origine
@@ -264,7 +321,7 @@ async function finishGiveaway(client, giveawayDoc) {
       }
 
       // Annonce publique des vainqueurs
-      const announcement = buildWinnerAnnouncement(doc, winners);
+      const announcement = buildWinnerAnnouncement(doc, winners, manualRoleWinners);
       await channel.send({ content: announcement }).catch(() => {});
     }
 
@@ -305,7 +362,7 @@ async function rerollGiveaway(client, giveawayDoc) {
     await doc.save();
 
     // Distribution des gains aux nouveaux gagnants
-    await distributeGiveawayRewards(client, doc, winners);
+    const { manualRoleWinners } = (await distributeGiveawayRewards(client, doc, winners)) || { manualRoleWinners: [] };
 
     if (channel && channel.isTextBased()) {
       if (doc.messageId) {
@@ -317,7 +374,7 @@ async function rerollGiveaway(client, giveawayDoc) {
         }
       }
 
-      const announcement = buildWinnerAnnouncement(doc, winners);
+      const announcement = buildWinnerAnnouncement(doc, winners, manualRoleWinners);
       await channel.send({
         content: `🔄 **Nouveau tirage au sort (Reroll)** pour le giveaway **${doc.prize}** !\n${announcement}`
       }).catch(() => {});

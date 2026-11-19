@@ -4,8 +4,10 @@ const {
   buildGiveawayEmbed,
   buildGiveawayButton,
   buildWinnerAnnouncement,
-  distributeGiveawayRewards
+  distributeGiveawayRewards,
+  handleGiveawayButton
 } = require("../../src/utils/giveawayUtils");
+const Giveaway = require("../../src/models/Giveaway");
 const User = require("../../src/models/User");
 const Level = require("../../src/models/Level");
 
@@ -192,8 +194,103 @@ test("distributeGiveawayRewards handles coins, xp and roles correctly", async ()
     );
     assert.equal(addedRoles.length, 1);
     assert.equal(addedRoles[0], "roleSpecial");
+
+    // 4. Role - Winner higher than bot (Manual assignment required)
+    const higherMember = {
+      id: "uOwner",
+      roles: {
+        highest: { position: 100 },
+        add: async () => { throw new Error("Hierarchy error"); }
+      }
+    };
+    const clientWithBot = {
+      guilds: {
+        cache: {
+          get: () => ({
+            ownerId: "uOwner",
+            members: {
+              me: { roles: { highest: { position: 20 } } },
+              fetch: async () => higherMember
+            },
+            roles: {
+              cache: { get: () => ({ position: 10, name: "VIP" }) }
+            }
+          })
+        }
+      }
+    };
+
+    const res = await distributeGiveawayRewards(
+      clientWithBot,
+      { guildId: "guild1", rewardType: "role", rewardRoleId: "roleVip" },
+      ["uOwner"]
+    );
+    assert.deepEqual(res.manualRoleWinners, ["uOwner"]);
+
+    const staffAnnounce = buildWinnerAnnouncement(
+      { prize: "Rôle VIP", rewardType: "role", rewardRoleId: "roleVip" },
+      ["uOwner"],
+      res.manualRoleWinners
+    );
+    assert.ok(staffAnnounce.includes("Note Staff"));
+    assert.ok(staffAnnounce.includes("<@uOwner>"));
   } finally {
     User.findOneAndUpdate = origUserFindOneAndUpdate;
     Level.findOneAndUpdate = origLevelFindOneAndUpdate;
+  }
+});
+
+test("handleGiveawayButton handles both giveaway_join_ and giveaway_enter_ prefixes with deferReply", async () => {
+  const origFindById = Giveaway.findById;
+  const origFindByIdAndUpdate = Giveaway.findByIdAndUpdate;
+
+  const validGwId = "507f1f77bcf86cd799439011";
+  const fakeDoc = {
+    _id: validGwId,
+    prize: "Épée Légendaire",
+    isEnded: false,
+    participants: [],
+  };
+
+  Giveaway.findById = async (id) => {
+    assert.equal(id, validGwId);
+    return { ...fakeDoc };
+  };
+
+  Giveaway.findByIdAndUpdate = async (id, update) => {
+    assert.equal(id, validGwId);
+    if (update.$addToSet) {
+      fakeDoc.participants.push(update.$addToSet.participants);
+    }
+    return { ...fakeDoc };
+  };
+
+  let deferred = false;
+  let replyContent = "";
+
+  const fakeInteraction = {
+    customId: `giveaway_enter_${validGwId}`,
+    user: { id: "userAboveBot" },
+    deferReply: async ({ ephemeral }) => {
+      assert.equal(ephemeral, true);
+      deferred = true;
+    },
+    deferred: true,
+    editReply: async ({ content }) => {
+      replyContent = content;
+    },
+    message: {
+      edit: async () => {}
+    }
+  };
+
+  try {
+    await handleGiveawayButton(fakeInteraction);
+    assert.equal(deferred, true);
+    assert.ok(replyContent.includes("Félicitations"));
+    assert.ok(fakeDoc.participants.includes("userAboveBot"));
+  } finally {
+    Giveaway.findById = origFindById;
+    Giveaway.findByIdAndUpdate = origFindByIdAndUpdate;
   }
 });
