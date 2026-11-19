@@ -314,6 +314,9 @@ router.put("/guilds/:guildId/config", authenticate, async (req, res) => {
     workMax: typeof patch.workMax === "number" ? Math.max(0, Math.floor(patch.workMax)) : undefined,
     chatReward: typeof patch.chatReward === "number" ? Math.max(0, Math.floor(patch.chatReward)) : undefined,
     robEnabled: typeof patch.robEnabled === "boolean" ? patch.robEnabled : undefined,
+    gamblingEnabled: typeof patch.gamblingEnabled === "boolean" ? patch.gamblingEnabled : undefined,
+    gamblingMaxBet: typeof patch.gamblingMaxBet === "number" ? Math.max(1, Math.floor(patch.gamblingMaxBet)) : undefined,
+    gamblingCooldown: typeof patch.gamblingCooldown === "number" ? Math.max(5, Math.floor(patch.gamblingCooldown)) : undefined,
 
     // Niveaux & XP
     xpEnabled: typeof patch.xpEnabled === "boolean" ? patch.xpEnabled : undefined,

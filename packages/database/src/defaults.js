@@ -44,6 +44,9 @@ function defaultGuildConfig() {
     workMax: 250,
     chatReward: 0,
     robEnabled: false,
+    gamblingEnabled: true,
+    gamblingMaxBet: 500,
+    gamblingCooldown: 45,
 
     // Niveaux & XP
     xpEnabled: true,

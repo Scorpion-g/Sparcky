@@ -54,6 +54,9 @@ const guildConfigSchema = new mongoose.Schema({
   workMax: { type: Number, default: 250 },
   chatReward: { type: Number, default: 0 },
   robEnabled: { type: Boolean, default: false },
+  gamblingEnabled: { type: Boolean, default: true },
+  gamblingMaxBet: { type: Number, default: 500 },
+  gamblingCooldown: { type: Number, default: 45 },
 
   // --- Niveaux & XP ---
   xpEnabled: { type: Boolean, default: true },

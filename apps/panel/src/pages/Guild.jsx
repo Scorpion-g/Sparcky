@@ -4201,6 +4201,53 @@ export default function GuildPage() {
                           onChange={v => updateField("robEnabled", v)}
                         />
                       </div>
+
+                      <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+                        <Toggle
+                          label="🎰 Autoriser les jeux de hasard (/coinflip, paris)"
+                          description="Permet aux membres de parier leurs crédits au pile ou face ou dans les jeux d'argent."
+                          checked={config?.gamblingEnabled !== false}
+                          onChange={v => updateField("gamblingEnabled", v)}
+                        />
+
+                        {config?.gamblingEnabled !== false && (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                              <label className="text-xs font-semibold text-slate-300">
+                                🛑 Mise maximale autorisée (/coinflip)
+                              </label>
+                              <input
+                                type="number"
+                                min={10}
+                                value={config?.gamblingMaxBet ?? 500}
+                                onChange={e => updateField("gamblingMaxBet", Number(e.target.value))}
+                                placeholder="Ex: 250 ou 500"
+                                className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">
+                                Empêche les techniques de martingale et l'enrichissement exponentiel.
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                              <label className="text-xs font-semibold text-slate-300">
+                                ⏳ Délai entre deux paris (secondes)
+                              </label>
+                              <input
+                                type="number"
+                                min={5}
+                                value={config?.gamblingCooldown ?? 45}
+                                onChange={e => updateField("gamblingCooldown", Number(e.target.value))}
+                                placeholder="Ex: 45 ou 60"
+                                className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900 px-3.5 py-2 text-sm text-white outline-none focus:border-indigo-500"
+                              />
+                              <p className="mt-1 text-[11px] text-slate-400">
+                                Bloque le spam et force les joueurs à patienter entre deux lancers.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Gestionnaire de Boutique (Shop Manager) */}

@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
 const logger = require("../../utils/logger");
 const User = require("../../models/User");
+const GuildConfiguration = require("../../models/GuildConfiguration");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -65,24 +66,42 @@ module.exports = {
 
     // Gestion de la mise
     if (betAmount > 0) {
+      const guildConfig = await GuildConfiguration.findOne({ guildId }).lean();
+      if (guildConfig && guildConfig.gamblingEnabled === false) {
+        return interaction.reply({
+          content: "❌ Les paris d'argent sont désactivés sur ce serveur.",
+          ephemeral: true,
+        });
+      }
+
+      const maxAllowed = guildConfig?.gamblingMaxBet ?? 500;
+      if (betAmount > maxAllowed) {
+        return interaction.reply({
+          content: `❌ La mise maximale autorisée est de **${maxAllowed.toLocaleString()} ${guildConfig?.currencySymbol || "$"}**.`,
+          ephemeral: true,
+        });
+      }
+
       let userData = await User.findOne({
         guildId,
         userId: interaction.user.id,
       });
 
-      if (!userData) {
-        userData = new User({
-          guildId,
-          userId: interaction.user.id,
-          balance: 100,
-        });
-      }
-
-      if (userData.balance < betAmount) {
+      if (!userData || (userData.balance || 0) < betAmount) {
         return interaction.reply({
           content: await interaction.t("FUN.CHIFUMI.ERRORS.INSUFFICIENT_FUNDS"),
           ephemeral: true,
         });
+      }
+
+      if (opponent && opponent.id !== interaction.user.id && !opponent.user?.bot) {
+        const oppData = await User.findOne({ guildId, userId: opponent.id });
+        if (!oppData || (oppData.balance || 0) < betAmount) {
+          return interaction.reply({
+            content: `❌ L'adversaire <@${opponent.id}> ne possède pas assez de fonds pour honorer ce pari de **${betAmount.toLocaleString()} ${guildConfig?.currencySymbol || "$"}** !`,
+            ephemeral: true,
+          });
+        }
       }
 
       userData.balance -= betAmount;
@@ -257,14 +276,27 @@ module.exports = {
 
     // Jeu contre le bot
     let result;
+    let userData = null;
+    if (betAmount > 0) {
+      userData = await User.findOne({ guildId, userId: interaction.user.id });
+    }
+
     if (userChoice === botChoice) {
       result = await interaction.t("FUN.CHIFUMI.RESULTS.DRAW");
+      if (betAmount > 0 && userData) {
+        userData.balance += betAmount; // Remboursement de la mise
+        await userData.save();
+      }
     } else if (
       (userChoice === "pierre" && botChoice === "ciseaux") ||
       (userChoice === "feuille" && botChoice === "pierre") ||
       (userChoice === "ciseaux" && botChoice === "feuille")
     ) {
       result = await interaction.t("FUN.CHIFUMI.RESULTS.YOU_WIN");
+      if (betAmount > 0 && userData) {
+        userData.balance += betAmount * 2; // Gain mise x2
+        await userData.save();
+      }
     } else {
       result = await interaction.t("FUN.CHIFUMI.RESULTS.BOT_WINS");
     }

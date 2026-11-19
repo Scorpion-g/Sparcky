@@ -29,6 +29,10 @@ const userSchema = new Schema({
 		type: Date,
 		default: null,
 	},
+  lastCoinflip: {
+    type: Date,
+    default: null,
+  },
   items: {
     type: [String],
     default: []

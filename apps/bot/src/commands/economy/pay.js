@@ -54,6 +54,13 @@ module.exports = {
       });
     }
 
+    if (targetUser.bot) {
+      return interaction.reply({
+        content: "❌ Vous ne pouvez pas transférer d'argent à un robot.",
+        ephemeral: true,
+      });
+    }
+
     if (amount <= 0) {
       return interaction.reply({
         content: await interaction.t("ECONOMY.PAY.INVALID_AMOUNT"),

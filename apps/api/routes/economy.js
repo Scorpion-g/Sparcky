@@ -86,7 +86,10 @@ router.get("/guilds/:guildId/economy", authenticate, async (req, res) => {
         workMin: config.workMin ?? 50,
         workMax: config.workMax ?? 250,
         chatReward: config.chatReward ?? 0,
-        robEnabled: Boolean(config.robEnabled)
+        robEnabled: Boolean(config.robEnabled),
+        gamblingEnabled: config.gamblingEnabled !== false,
+        gamblingMaxBet: config.gamblingMaxBet ?? 500,
+        gamblingCooldown: config.gamblingCooldown ?? 45,
       },
       leaderboard: enrichedLeaderboard
     })
